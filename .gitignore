@@ -1,0 +1,22 @@
+# results / outputs
+results/
+output/
+*.pdf
+*.png
+*.csv
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+*.Rproj
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
