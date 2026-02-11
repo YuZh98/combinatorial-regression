@@ -5,6 +5,4 @@ if (!requireNamespace("Rcpp", quietly = TRUE)) {
 
 Rcpp::sourceCpp("R/src/cpp/hit_and_run.cpp")
 Rcpp::sourceCpp("R/src/cpp/hit_and_run_augmented.cpp")
-
-# If/when you add TUM:
-# Rcpp::sourceCpp("R/src/cpp/tum_check.cpp")
+Rcpp::sourceCpp("R/src/cpp/tum_check.cpp")
