@@ -1,110 +1,148 @@
-rm(list=ls())
+# ------------------------------------------------------------
+# duck_matching_reduced.R
+# Reduced model: ducks grouped into 2 groups (Dabbling vs Diving)
+# Repo scheme: run from repo root; read data from data/; write outputs to results/
+# ------------------------------------------------------------
+
+source("R/src/common/cpp_build.R")
+
+suppressPackageStartupMessages({
+  library(bridgesampling)
+  library(mvtnorm)
+  library(truncnorm)
+  library(splines)
+  library(lpSolve)
+  library(lintools)
+})
+
+set.seed(123)
+
+# -------------------------------
+# Optional overrides via env vars
+# -------------------------------
+get_env_int <- function(name, default) {
+  x <- Sys.getenv(name, unset = "")
+  if (x == "") return(default)
+  as.integer(x)
+}
+
+get_env_dbl <- function(name, default) {
+  x <- Sys.getenv(name, unset = "")
+  if (x == "") return(default)
+  as.numeric(x)
+}
+
+get_env_bool <- function(name, default) {
+  x <- Sys.getenv(name, unset = "")
+  if (x == "") return(default)
+  tolower(x) %in% c("1", "true", "t", "yes", "y")
+}
+
+# -------------------------------
+# Paths + outputs
+# -------------------------------
+DATA_DIR <- Sys.getenv("JASA_DATA_DIR", unset = file.path("data", "waterfowl_matching"))
+
+DUCKS_CSV <- file.path(DATA_DIR, "duck_data.csv")
+A_CSV <- file.path(DATA_DIR, "A_tilde_matrix.csv")
+Z_CSV <- file.path(DATA_DIR, "Z_matrix.csv")
+
+RESULTS_ROOT <- file.path("results", "runs", "data_analysis")
+dir.create(RESULTS_ROOT, recursive = TRUE, showWarnings = FALSE)
+
+RUN_TAG <- Sys.getenv("JASA_RUN_TAG", "reduced_default")
+RUN_DIR <- file.path(RESULTS_ROOT, RUN_TAG)
+dir.create(RUN_DIR, recursive = TRUE, showWarnings = FALSE)
+
+# Metadata
+meta_path <- file.path(RUN_DIR, "run_metadata.txt")
+cat(
+  paste0("timestamp: ", Sys.time(), "\n"),
+  paste0("run_tag: ", RUN_TAG, "\n"),
+  paste0("DATA_DIR: ", DATA_DIR, "\n"),
+  paste0("R.version: ", R.version.string, "\n"),
+  "seed: 123\n",
+  file = meta_path
+)
+capture.output(sessionInfo(), file = file.path(RUN_DIR, "sessionInfo.txt"))
 
 # -------------------------------
 # Load data
 # -------------------------------
-setwd('/Users/zhengyu/Desktop/UF/Research/Intergral_Linear_Programming/Data_Application')
-# Read duck_data.csv
-ducks <- read.csv("duck_data.csv")
+stopifnot(file.exists(DUCKS_CSV), file.exists(A_CSV), file.exists(Z_CSV))
 
-# Read A and y as numeric matrices
-A <- as.matrix(read.csv("A_tilde_matrix.csv", header = FALSE))
-y <- as.matrix(read.csv("Z_matrix.csv", header = FALSE))
-
-# Set b (constraint vector)
+ducks <- read.csv(DUCKS_CSV)
+A <- as.matrix(read.csv(A_CSV, header = FALSE))
+y <- as.matrix(read.csv(Z_CSV, header = FALSE))
 b <- rep(1, nrow(A))
 
-
-
 # -------------------------------
-# Load dependent codes
+# Pre-MCMC (dimensions from data)
 # -------------------------------
-setwd('../r_code')
+n <- nrow(y)
+d <- ncol(y)
+m <- nrow(A)
 
-library(bridgesampling)
-library(mvtnorm)
-library(truncnorm)
-library(splines)
-library("lpSolve")
-library("lintools")
-# use our own customized hit_and_run
-library(Rcpp)
-sourceCpp("hit_and_run.cpp")  # make sure this file contains the code from above
-sourceCpp("tum_check.cpp")  # check TUM
+K <- 2                              # reduced groups
+M <- 3                              # Length of alpha [DO NOT CHANGE]
+kappa <- get_env_int("JASA_KAPPA", 5)
 
+# Construct C helper
+construct_C_from_ducks <- function(group_vec) {
+  group_levels <- unique(group_vec)
+  K_local <- length(group_levels)
+  d_local <- length(group_vec)
 
-
-
-# -------------------------------
-# Pre-MCMC
-# -------------------------------
-n <- 18  # Number of weeks
-d <- 339  # Number of edges in the original graph
-m <- 95  # Number of constraints
-K <- 2 # Number of groups (species)
-M <- 3  # Length of alpha [DO NOT CHANGE]
-kappa <- 5  # Degrees of freedom (number of basis functions)
-
-
-# Construct C
-construct_C_from_ducks <- function(species_vec) {
-  species_levels <- unique(species_vec)  # preserve original order
-  K <- length(species_levels)
-  d <- length(species_vec)
-  
-  C <- matrix(0, nrow = K, ncol = d)
-  
-  for (j in 1:d) {
-    k <- which(species_levels == species_vec[j])
+  C <- matrix(0, nrow = K_local, ncol = d_local)
+  for (j in 1:d_local) {
+    k <- which(group_levels == group_vec[j])
     C[k, j] <- 1
   }
-  
-  return(list(C = C, s_list = rowSums(C), species_levels = species_levels))
+  list(C = C, s_list = rowSums(C), group_levels = group_levels)
 }
 
+# Reduced grouping:
+ducks$duck_group <- ifelse(
+  ducks$duck_species %in% c("American Black Duck", "Mallard", "Gadwall"),
+  "Dabbling Duck",
+  "Diving Duck"
+)
 
-# Group American Black Duck, Mallard, and Gadwall into the same group
-# Create a new column in ducks dataframe for group
-ducks$duck_group <- ifelse(ducks$duck_species %in% c("American Black Duck", "Mallard", "Gadwall"), "Dabbling Duck", "Diving Duck")
-result <- construct_C_from_ducks(ducks$duck_group) # This function can be found in duck_matching.R
+result <- construct_C_from_ducks(ducks$duck_group)
 C <- result$C
 s_list <- result$s_list
-unique(ducks$duck_species)
 
+# Sanity checks
+stopifnot(nrow(C) == K, ncol(C) == d)
+stopifnot(nrow(A) == m, ncol(A) == d)
+stopifnot(length(b) == m)
 
 # Construct W_list
-W1 = matrix(1, n, d)
-W2 = matrix(rep(ducks$duck_weight_male, n), n, d, byrow=TRUE)
-W3 = matrix(rep(ducks$duck_weight_female, n), n, d, byrow=TRUE)
+W1 <- matrix(1, n, d)
+W2 <- matrix(rep(ducks$duck_weight_male, each = n), nrow = n, ncol = d, byrow = FALSE)
+W3 <- matrix(rep(ducks$duck_weight_female, each = n), nrow = n, ncol = d, byrow = FALSE)
+W_list <- list(W1 = W1, W2 = W2, W3 = W3)
 
-W_list = list(W1=W1, W2=W2, W3=W3)
+# Construct B (n x kappa)
+B <- bs(seq(0, 1, length.out = n), df = kappa, intercept = TRUE)
 
-# Construct B
-B <- bs(seq(0, 1, length.out = n), df = kappa, intercept = TRUE)  # n x kappa matrix
-
-
-
-# Find whether U can be non-zero
-U_free <- (t(A%*%t(y) == b))*1
-U <- matrix(rexp(n*m),n,m) * U_free
-
+# U feasibility mask
+U_free <- (t(A %*% t(y) == b)) * 1
+U <- matrix(rexp(n * m), nrow = n, ncol = m) * U_free
 
 # -------------------------------
-# Specify prior parameters for alpha and rho
+# Priors
 # -------------------------------
-tau_a <- 0.1
-tau_rho <- 0.1
-
-
+tau_a <- get_env_dbl("JASA_TAU_A", 0.1)
+tau_rho <- get_env_dbl("JASA_TAU_RHO", 0.1)
 
 # -------------------------------
-# Precompute constant matrices for updates
+# Precompute constants
 # -------------------------------
 B_star <- t(B) %*% B + diag(tau_rho, kappa)
 inv_B_star <- solve(B_star)
 inv_B_star_BT <- inv_B_star %*% t(B)
 
-# W_star matrix (now M x M)
 W_star <- matrix(0, M, M)
 for (i in 1:M) {
   for (j in 1:M) {
@@ -117,36 +155,56 @@ inv_W_star <- solve(W_star)
 chol_inv_B_star <- t(chol(inv_B_star))
 chol_inv_W_star <- t(chol(inv_W_star))
 
-
-
 # -------------------------------
-# Gibbs sampler settings
+# Gibbs sampler settings (overridable)
 # -------------------------------
-n_iter <- 50000     # number of Gibbs iterations
+n_iter <- get_env_int("JASA_N_ITER", 50000)
+n_warmup <- get_env_int("JASA_N_WARMUP", 5000)
+thin <- get_env_int("JASA_N_THIN", 1)
 
-rho_samples <- array(NA, dim = c(n_iter, kappa, K))  # to store rho draws
-a_samples <- array(NA, dim = c(n_iter, M))  # to store a draws
-zeta_samples <- array(NA, dim = c(n_iter, n, d))  # to store zeta draws
+save_rho <- get_env_bool("JASA_SAVE_RHO", TRUE)
+save_a <- get_env_bool("JASA_SAVE_A", TRUE)
+save_zeta <- get_env_bool("JASA_SAVE_ZETA", FALSE)  # huge by default
 
+rho_samples <- if (save_rho) array(NA, dim = c(n_iter, kappa, K)) else NULL
+a_samples <- if (save_a) array(NA, dim = c(n_iter, M)) else NULL
+zeta_samples <- if (save_zeta) array(NA, dim = c(n_iter, n, d)) else NULL
 
-rho <- matrix(0, nrow = kappa, ncol = K)   # initial value for rho
-a <- rnorm(M)   # initial value for a
-
-
+rho <- matrix(0, nrow = kappa, ncol = K)
+a <- rnorm(M)
 
 # Initialize zeta
 zeta <- matrix(NA, n, d)
-UA = U%*%A
-W_sum <- Reduce(`+`, lapply(1:M, function(m) a[m] * W_list[[m]]))
+UA <- U %*% A
+W_sum <- Reduce(`+`, lapply(1:M, function(mm) a[mm] * W_list[[mm]]))
 B_rho_C <- B %*% rho %*% C
 mu <- W_sum + B_rho_C
+
 for (j in 1:d) {
-  # Set vectorized lower and upper bounds based on observed y
-  lower_bound <- ifelse(y[, j] == 1, UA[,j], -Inf)
-  upper_bound <- ifelse(y[, j] == 1, Inf, UA[,j])
-  # Sample all n latent variables for outcome j in one call
-  zeta[, j] <- rtruncnorm(n, a = lower_bound, b = upper_bound, mean = mu[,j], sd = 1)
+  lower_bound <- ifelse(y[, j] == 1, UA[, j], -Inf)
+  upper_bound <- ifelse(y[, j] == 1, Inf, UA[, j])
+  zeta[, j] <- rtruncnorm(n, a = lower_bound, b = upper_bound, mean = mu[, j], sd = 1)
 }
+
+# Log effective settings
+cat(
+  "\n---- duck_matching_reduced settings ----\n",
+  paste0("n: ", n, "\n"),
+  paste0("d: ", d, "\n"),
+  paste0("m: ", m, "\n"),
+  paste0("K: ", K, "\n"),
+  paste0("kappa: ", kappa, "\n"),
+  paste0("n_iter: ", n_iter, "\n"),
+  paste0("n_warmup: ", n_warmup, "\n"),
+  paste0("thin: ", thin, "\n"),
+  paste0("tau_a: ", tau_a, "\n"),
+  paste0("tau_rho: ", tau_rho, "\n"),
+  paste0("save_rho: ", save_rho, "\n"),
+  paste0("save_a: ", save_a, "\n"),
+  paste0("save_zeta: ", save_zeta, "\n"),
+  file = meta_path,
+  append = TRUE
+)
 
 
 # -------------------------------
@@ -223,35 +281,44 @@ for (iter in 1:n_iter) {
   
   
   # Store samples
-  rho_samples[iter, , ] <- rho
-  a_samples[iter, ] <- a
-  zeta_samples[iter, , ] <- zeta
+  if (save_rho) rho_samples[iter, , ] <- rho
+  if (save_a)   a_samples[iter, ] <- a
+  if (save_zeta) zeta_samples[iter, , ] <- zeta
 }
 
 
-rho_samples_reduced <- rho_samples
-a_samples_reduced <- a_samples
 
-# Save the samples
-setwd('../Results/Duck_matching')
-rho_samples_filename <- sprintf("run2_duck_iter%d_n%d_kappa%d_K%d_rho_samples_reduced.rds", n_iter, n, kappa, K)
-a_samples_filename <- sprintf("run2_duck_iter%d_n%d_kappa%d_K%d_a_samples_reduced.rds", n_iter, n, kappa, K)
-zeta_samples_filename <- sprintf("run2_duck_iter%d_n%d_kappa%d_K%d_zeta_samples_reduced.rds", n_iter, n, kappa, K)
-saveRDS(rho_samples_reduced, file = rho_samples_filename)
-saveRDS(a_samples_reduced, file = a_samples_filename)
-saveRDS(zeta_samples, file = zeta_samples_filename)
+# -------------------------------
+# Save results
+# -------------------------------
+case_tag <- sprintf("duck_reduced_iter%d_n%d_kappa%d_K%d", n_iter, n, kappa, K)
 
-# Read the saved samples from complete and reduced models for comparison
-rho_samples_full <- readRDS(sprintf("duck_iter%d_n%d_kappa%d_K7_rho_samples.rds", n_iter, n, kappa))
-a_samples_full <- readRDS(sprintf("duck_iter%d_n%d_kappa%d_K7_a_samples.rds", n_iter, n, kappa))
+if (save_rho) saveRDS(rho_samples, file = file.path(RUN_DIR, paste0(case_tag, "_rho_samples.rds")))
+if (save_a) saveRDS(a_samples, file = file.path(RUN_DIR, paste0(case_tag, "_a_samples.rds")))
+if (save_zeta) saveRDS(zeta_samples, file = file.path(RUN_DIR, paste0(case_tag, "_zeta_samples.rds")))
 
+cat("Saved reduced-model results under: ", RUN_DIR, "\n", sep = "")
 
+# # -------------------------------
+# # Optional: read full-model samples for comparison (no Bayes factor here)
+# # -------------------------------
+# FULL_TAG <- Sys.getenv("JASA_FULL_TAG", unset = "default")
+# FULL_DIR <- file.path(RESULTS_ROOT, FULL_TAG)
 
-# Check the dimensions of the samples
-dim(rho_samples_full)  # should be (n_iter, kappa, K)
-dim(a_samples_full)    # should be (n_iter, M)
-dim(rho_samples_reduced)  # should be (n_iter, kappa, K)
-dim(a_samples_reduced)    # should be (n_iter, M)
+# # These filenames match the scheme we used in duck_matching.R:
+# full_case_tag <- sprintf("duck_iter%d_n%d_kappa%d_K%d", n_iter, n, kappa, 7)
+
+# rho_full_path <- file.path(FULL_DIR, paste0(full_case_tag, "_rho_samples.rds"))
+# a_full_path <- file.path(FULL_DIR, paste0(full_case_tag, "_a_samples.rds"))
+
+# if (file.exists(rho_full_path) && file.exists(a_full_path)) {
+#   rho_samples_full <- readRDS(rho_full_path)
+#   a_samples_full <- readRDS(a_full_path)
+#   cat("Loaded full-model samples from: ", FULL_DIR, "\n", sep = "")
+# } else {
+#   cat("Full-model samples not found under: ", FULL_DIR, "\n", sep = "")
+#   cat("Expected:\n  ", rho_full_path, "\n  ", a_full_path, "\n", sep = "")
+# }
 
 
 

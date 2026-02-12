@@ -76,7 +76,18 @@ d_list <- get_env_int_list("JASA_D_LIST", c(2, 5, 10, 20, 50, 100, 200, 500, 100
 m_list <- get_env_int_list("JASA_M_LIST", c(1, 2, 5, 10, 20, 50, 100))
 n_rep <- get_env_int("JASA_N_REP", 5)
 
-method_list <- get_env_str_list("JASA_METHODS", c("exponential", "half_gaussian"))
+method_list <- get_env_str_list("JASA_METHODS", c("exponential"))   # can be half_gaussian or exponential or both
+cat("\n---- U-kernel configuration ----\n")
+cat("Kernels used for u update: ", paste(method_list, collapse = ", "), "\n")
+
+if (length(method_list) > 1) {
+  cat("NOTE: Multiple kernels selected — this corresponds to supplementary comparison.\n")
+} else {
+  cat("NOTE: Single kernel selected — this corresponds to main paper results.\n")
+}
+cat("----------------------------------\n\n")
+
+
 n_iter <- get_env_int("JASA_N_ITER", 50000)
 n_warmup <- get_env_int("JASA_N_WARMUP", 5000)
 n_thin <- get_env_int("JASA_N_THIN", 25)

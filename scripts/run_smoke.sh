@@ -25,3 +25,17 @@ Rscript R/simulations/mh_within_gibbs/Production_Run.R | tee results/logs/mh_wit
 
 echo "[SMOKE] Done."
 echo "Outputs: results/runs/mh_within_gibbs/smoke/"
+
+
+echo "[SMOKE] Running duck data analysis (fast settings)..."
+
+export JASA_RUN_TAG=duck_smoke
+export JASA_N_ITER=200
+export JASA_N_WARMUP=50
+export JASA_SAVE_ZETA=false
+export JASA_SAVE_RHO=true
+export JASA_SAVE_A=true
+
+Rscript R/data_analysis/duck_matching.R | tee results/logs/duck_smoke.log
+
+echo "[SMOKE] Duck analysis done."
