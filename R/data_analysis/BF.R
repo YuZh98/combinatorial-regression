@@ -269,11 +269,11 @@ log_BF_den <- log_BF_middle_calculator(
   tau_rho = tau_rho
 )
 
-log_BF <- log_BF_num - log_BF_den
+log_BF <- log_BF_den - log_BF_num
 BF <- exp(log_BF)
 
 cat("Log Bayes Factor:", round(log_BF, 3), "\n")
-cat("Bayes Factor in favor of the full model:", round(BF, 3), "\n")
+cat("Bayes Factor in favor of the reduced model:", round(BF, 3), "\n")
 
 # Save a small table for reviewers
 out_csv <- file.path(RESULTS_TABLES_ROOT, paste0("bayes_factor_", RUN_TAG, ".csv"))

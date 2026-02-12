@@ -14,8 +14,8 @@ export JASA_RUN_TAG="${JASA_RUN_TAG:-kernel_compare}"
 export JASA_METHODS="${JASA_METHODS:-exponential,half_gaussian}"
 
 # (d, m) pairs to run
-export JASA_D_LIST="${JASA_D_LIST:-2,5,10,20,50,100,200,500,1000}"
-export JASA_M_LIST="${JASA_M_LIST:-1,2,5,10,20,50,100}"
+export JASA_D_LIST="${JASA_D_LIST:-5,20,50,200,1000}"
+export JASA_M_LIST="${JASA_M_LIST:-1,5,10,50,100}"
 
 # Lighter run for kernel comparison
 export JASA_N_ITER="${JASA_N_ITER:-10000}"

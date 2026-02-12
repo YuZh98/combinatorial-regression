@@ -1,4 +1,4 @@
-.PHONY: help smoke full clean duck_full duck_reduced bf
+.PHONY: help smoke full clean duck_full duck_reduced bf kernel_compare probit probit_smoke
 
 help:
 	@echo "Targets:"
@@ -8,6 +8,7 @@ help:
 	@echo "  make duck_reduced - run reduced duck model (data analysis)"
 	@echo "  make bf           - run full + reduced + Bayes factor pipeline"
 	@echo "  make clean        - remove results/"
+	@echo "  make kernel_compare - run u kernel comparison experiment (simulation)"
 
 smoke:
 	bash scripts/run_smoke.sh
@@ -26,3 +27,12 @@ bf:
 
 clean:
 	rm -rf results
+
+kernel_compare:
+	bash scripts/run_kernel_compare.sh
+
+probit:
+	bash scripts/run_probit.sh
+
+probit_smoke:
+	bash scripts/run_probit_smoke.sh
