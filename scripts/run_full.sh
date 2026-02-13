@@ -9,16 +9,16 @@ mkdir -p results/{runs,figures,tables,logs}
 echo "[FULL] Running MH-within-Gibbs (example settings; adjust as needed)..."
 
 export JASA_RUN_TAG=full_example
-export JASA_D_LIST="2 5 10"
-export JASA_M_LIST="1 2 5"
-export JASA_N_REP=2
-export JASA_N_ITER=5000
-export JASA_N_WARMUP=1000
+export JASA_D_LIST="2 5"
+export JASA_M_LIST="1 2"
+export JASA_N_REP=1
+export JASA_N_ITER=1000
+export JASA_N_WARMUP=500
 export JASA_N_THIN=25
 export JASA_N_HAR=50
-export JASA_METHODS="exponential half_gaussian"
-export JASA_SAVE=false
-export JASA_PLOT=false
+export JASA_METHODS="exponential halfgaussian"
+export JASA_SAVE=true
+export JASA_PLOT=true
 
 Rscript R/simulations/mh_within_gibbs/Production_Run.R | tee results/logs/mh_within_gibbs_full_example.log
 

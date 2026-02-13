@@ -20,7 +20,6 @@ run_experiment(
     m: int,           # number of constraints
     tau_beta: float = 1.0,        # prior variance for β
     mcmc_config: Optional[MCMCConfig] = None,
-    gibbs_config: Optional[GibbsConfig] = None,
     diagnostic_config: Optional[DiagnosticConfig] = None,
     data_seed: int = 123,
     mcmc_seed: int = 456,
@@ -32,7 +31,7 @@ run_experiment(
 ```
 
 **Returns:**
-- `mcmc_or_info`: MCMC object (for baseline/marginal_joint) or dict (for marginal_gibbs)
+- `mcmc_or_info`: MCMC object (for baseline/marginal_joint)
 - `samples`: dict with keys "beta", "u" (and "v", "zeta" for baseline)
 - `diagnostics`: dict with ESS, R-hat, RMSE, warnings, etc.
 
@@ -61,15 +60,6 @@ Settings for NUTS/HMC sampling.
 - `dense_mass: bool = False` — use dense mass matrix
 - `step_size: float = 0.05` — initial step size (ignored by NUTS)
 
-### `GibbsConfig`
-
-Settings for Gibbs sampler (only for `marginal_gibbs`).
-
-**Fields:**
-- `num_beta_steps: int = 5` — NUTS iterations for β | U block
-- `num_u_steps: int = 5` — NUTS iterations for U | β block
-- `num_outer_iterations: int = 1000` — total Gibbs iterations
-- `num_warmup_iterations: int = 500` — warmup Gibbs iterations
 
 ### `DiagnosticConfig`
 
@@ -97,12 +87,11 @@ mj__n1000_p5_d50_m20__tau1.0__w2000_s3000_c1_ap0.75__ds123_ms456__samples.npz
 ```
 
 **Components:**
-- `alg`: Algorithm abbreviation (`bl`=baseline, `mj`=marginal_joint, `mg`=marginal_gibbs)
+- `alg`: Algorithm abbreviation (`bl`=baseline, `mj`=marginal_joint)
 - `dims`: `n{n}_p{p}_d{d}_m{m}`
 - `tau`: `tau{tau_beta}`
 - `mcmc`: `w{num_warmup}_s{num_samples}_c{num_chains}_ap{target_accept_prob}` (adds `_dm1` if dense_mass=True)
 - `seeds`: `ds{data_seed}_ms{mcmc_seed}`
-- `gibbs` (marginal_gibbs only): `gb{num_beta_steps}_gu{num_u_steps}_go{num_outer}_gw{num_warmup}`
 
 ### Saved Artifacts
 
@@ -125,7 +114,6 @@ stub = build_run_stub(
     n=1000, p=5, d=50, m=20,
     tau_beta=1.0,
     mcmc_config=MCMCConfig(),
-    gibbs_config=None,
     data_seed=123,
     mcmc_seed=456,
 )
@@ -146,7 +134,6 @@ paths = get_artifact_paths(stub, output_dir="./results")
 - `dimensions`: `{n, p, d, m, num_u_active}`
 - `hyperparameters`: `{tau_beta, constraint_tolerance}`
 - `mcmc_config`: Full MCMCConfig as dict
-- `gibbs_config`: Full GibbsConfig as dict (or null)
 - `seeds`: `{data_seed, mcmc_seed}`
 - `shapes`: Dictionary of array shapes
 - `version_info`: Python, JAX, NumPyro versions
@@ -171,10 +158,6 @@ Run baseline NUTS on (β, U, V).
 ### `run_nuts_marginal`
 
 Run marginal joint NUTS on (β, U) with V integrated out.
-
-### `run_gibbs_marginal`
-
-Run Gibbs sampler with alternating NUTS kernels.
 
 ---
 
@@ -218,7 +201,7 @@ import glob
 import pandas as pd
 
 summaries = []
-for path in glob.glob("./results/*__summary.json"):
+for path in glob.glob("./results/hmc/*__summary.json"):
     with open(path) as f:
         summaries.append(json.load(f))
 
@@ -228,7 +211,3 @@ print(df[["algorithm", "d", "runtime_seconds"]])
 
 ---
 
-## Constants
-
-- `CONSTRAINT_TOLERANCE = 1e-6`
-- `DEFAULT_SIM_OUT_DIR = "./Constraints/Results/Simulation_HMC"`

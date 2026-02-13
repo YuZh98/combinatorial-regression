@@ -16,7 +16,6 @@ posterior and is the agreed-upon target for all algorithms.
 THREE ALGORITHMS:
 1. Baseline: Joint NUTS on (β, U, V)
 2. Marginal Joint: Joint NUTS on (β, U) with V analytically marginalized
-3. Marginal Gibbs: Alternating NUTS kernels on β|U and U|β with V marginalized
 
 AUTHOR: Research implementation for single-user advanced use
 """
@@ -74,15 +73,6 @@ class MCMCConfig:
 
 
 @dataclass
-class GibbsConfig:
-    """Configuration for Gibbs sampler with NUTS kernels."""
-    num_beta_steps: int = 5  # NUTS iterations for β | U
-    num_u_steps: int = 5     # NUTS iterations for U | β
-    num_outer_iterations: int = 1000  # Total Gibbs iterations
-    num_warmup_iterations: int = 500  # Warmup outer iterations
-
-
-@dataclass
 class DiagnosticConfig:
     """Configuration for diagnostic outputs."""
     max_plots: int = 8
@@ -105,7 +95,6 @@ def build_run_stub(
     m: int,
     tau_beta: float,
     mcmc_config: "MCMCConfig",
-    gibbs_config: Optional["GibbsConfig"],
     data_seed: int,
     mcmc_seed: int,
 ) -> str:
@@ -126,8 +115,6 @@ def build_run_stub(
         Prior variance for β
     mcmc_config : MCMCConfig
         MCMC configuration
-    gibbs_config : GibbsConfig or None
-        Gibbs configuration (only used if algorithm == "marginal_gibbs")
     data_seed : int
         Seed for data generation
     mcmc_seed : int
@@ -150,7 +137,6 @@ def build_run_stub(
         "marginal_joint": "marginal_joint_ptntl",
         "marginal_joint_model_version": "marginal_joint_mdl",
         "marginal_joint_green": "marginal_joint_green_ptntl",
-        "marginal_gibbs": "marginal_gibbs",
     }
     alg_str = alg_alias.get(algorithm, algorithm[:3])
     
@@ -247,7 +233,6 @@ def save_meta_json(
     m: int,
     tau_beta: float,
     mcmc_config: "MCMCConfig",
-    gibbs_config: Optional["GibbsConfig"],
     diagnostic_config: "DiagnosticConfig",
     data_seed: int,
     mcmc_seed: int,
@@ -268,7 +253,6 @@ def save_meta_json(
     tau_beta : float
         Prior variance
     mcmc_config : MCMCConfig
-    gibbs_config : GibbsConfig or None
     diagnostic_config : DiagnosticConfig
     data_seed, mcmc_seed : int
         Random seeds
@@ -292,7 +276,6 @@ def save_meta_json(
             "constraint_tolerance": CONSTRAINT_TOLERANCE,
         },
         "mcmc_config": asdict(mcmc_config),
-        "gibbs_config": asdict(gibbs_config) if gibbs_config is not None else None,
         "diagnostic_config": asdict(diagnostic_config),
         "seeds": {
             "data_seed": data_seed,
@@ -316,7 +299,6 @@ def save_summary_json(
     m: int,
     tau_beta: float,
     mcmc_config: "MCMCConfig",
-    gibbs_config: Optional["GibbsConfig"],
     data_seed: int,
     mcmc_seed: int,
     artifact_paths: Dict[str, str],
@@ -342,7 +324,6 @@ def save_summary_json(
     tau_beta : float
         Prior variance
     mcmc_config : MCMCConfig
-    gibbs_config : GibbsConfig or None
     data_seed, mcmc_seed : int
         Random seeds
     artifact_paths : dict
@@ -386,12 +367,6 @@ def save_summary_json(
         "frac_divergences": None,
     }
     
-    # Add Gibbs-specific fields if applicable
-    if gibbs_config is not None:
-        summary["gibbs_num_beta_steps"] = gibbs_config.num_beta_steps
-        summary["gibbs_num_u_steps"] = gibbs_config.num_u_steps
-        summary["gibbs_num_outer_iterations"] = gibbs_config.num_outer_iterations
-        summary["gibbs_num_warmup_iterations"] = gibbs_config.num_warmup_iterations
     
     # Populate diagnostic scalars if available
     if diagnostics is not None:
@@ -1728,171 +1703,6 @@ def run_nuts_marginal_green(
     return {"beta": beta_samples}
 
 
-def run_gibbs_marginal(
-    y: np.ndarray,
-    X: np.ndarray,
-    A: np.ndarray,
-    b: np.ndarray,
-    tau_beta: float = 10.0,
-    mcmc_config: Optional[MCMCConfig] = None,
-    gibbs_config: Optional[GibbsConfig] = None,
-    rng_seed: int = 0,
-    scale_beta: float = 1.0,
-    scale_u: float = 1.0,
-) -> Tuple[Dict, Dict]:
-    """
-    Run Gibbs sampler with alternating NUTS kernels for β|U and U|β.
-
-    V is marginalized out. Each outer Gibbs iteration consists of:
-    1. Run NUTS for β | u for num_beta_steps
-    2. Run NUTS for u | β for num_u_steps
-    3. Keep last sample from each block
-
-    Parameters
-    ----------
-    y, X, A, b : data and constraints
-    tau_beta : float
-    mcmc_config : MCMCConfig or None
-        Settings for inner NUTS kernels (warmup, target_accept_prob, etc.).
-    gibbs_config : GibbsConfig or None
-        Gibbs-specific settings (num_beta_steps, num_u_steps, num_outer_iterations).
-    rng_seed : int
-    scale_beta, scale_u : float
-
-    Returns
-    -------
-    mcmc_info : dict
-        Contains metadata about the Gibbs run (not a standard MCMC object).
-    samples : dict
-        Keys: "beta", "u". Shape (num_outer_iterations, ...).
-    """
-    if mcmc_config is None:
-        mcmc_config = MCMCConfig()
-    if gibbs_config is None:
-        gibbs_config = GibbsConfig()
-
-    struct = build_struct(y, X, A, b, tau_beta=tau_beta)
-
-    # Initialize
-    key = jax.random.PRNGKey(rng_seed)
-    init_key, key = jax.random.split(key)
-    
-    init_params = init_params_marginal(struct, init_key, scale_beta, scale_u)
-    
-    # Transform initial z_u to u
-    idx_u_i = struct["idx_u_i"]
-    idx_u_k = struct["idx_u_k"]
-    n, d, p, m = struct["n"], struct["d"], struct["p"], struct["m"]
-    
-    def z_to_u(z_u):
-        u_active = jax.nn.softplus(z_u)
-        u = jnp.zeros((n, m))
-        u = u.at[idx_u_i, idx_u_k].set(u_active)
-        return u
-    
-    beta_current = init_params["beta"]
-    u_current = z_to_u(init_params["z_u"])
-    
-    # Storage for samples
-    beta_samples = []
-    u_samples = []
-    
-    # Gibbs iterations
-    num_outer = gibbs_config.num_outer_iterations
-    num_warmup_outer = gibbs_config.num_warmup_iterations
-    
-    for outer_iter in range(num_outer):
-        key, subkey1, subkey2 = jax.random.split(key, 3)
-        
-        # Determine if we're in warmup phase
-        in_warmup = (outer_iter < num_warmup_outer)
-        
-        # ========================================
-        # Step 1: Sample β | u
-        # ========================================
-        potential_fn_beta = make_potential_fn_beta_given_u(struct, u_current)
-        
-        kernel_beta = NUTS(
-            potential_fn=potential_fn_beta,
-            target_accept_prob=mcmc_config.target_accept_prob,
-            dense_mass=False,  # Use diagonal mass for Gibbs blocks
-        )
-        
-        # For Gibbs, we use num_beta_steps as "samples" with 0 warmup
-        # since we're already in the adaptation/warmup phase at the outer level
-        mcmc_beta = MCMC(
-            kernel_beta,
-            num_warmup=gibbs_config.num_beta_steps // 2 if in_warmup else 0,
-            num_samples=gibbs_config.num_beta_steps,
-            num_chains=1,
-            progress_bar=False,
-        )
-        
-        init_beta = {"beta": beta_current}
-        mcmc_beta.run(subkey1, init_params=init_beta)
-        
-        beta_block_samples = mcmc_beta.get_samples(group_by_chain=False)["beta"]
-        beta_current = beta_block_samples[-1]  # Keep last sample
-        
-        # ========================================
-        # Step 2: Sample u | β
-        # ========================================
-        potential_fn_u = make_potential_fn_u_given_beta(struct, beta_current)
-        
-        kernel_u = NUTS(
-            potential_fn=potential_fn_u,
-            target_accept_prob=mcmc_config.target_accept_prob,
-            dense_mass=False,
-        )
-        
-        mcmc_u = MCMC(
-            kernel_u,
-            num_warmup=gibbs_config.num_u_steps // 2 if in_warmup else 0,
-            num_samples=gibbs_config.num_u_steps,
-            num_chains=1,
-            progress_bar=False,
-        )
-        
-        # Need to convert current u to z_u for initialization
-        # Use inverse softplus: z = log(exp(u) - 1) ≈ log(u) for u > 1
-        # For simplicity, initialize z_u as log(u_active + 1e-6)
-        u_active_current = u_current[idx_u_i, idx_u_k]
-        z_u_init = jnp.log(u_active_current + 1e-6)
-        
-        init_u = {"z_u": z_u_init}
-        mcmc_u.run(subkey2, init_params=init_u)
-        
-        z_u_block_samples = mcmc_u.get_samples(group_by_chain=False)["z_u"]
-        z_u_current = z_u_block_samples[-1]
-        u_current = z_to_u(z_u_current)
-        
-        # Store samples (only after warmup)
-        if not in_warmup:
-            beta_samples.append(np.array(beta_current))
-            u_samples.append(np.array(u_current))
-        
-        # Progress indicator
-        if (outer_iter + 1) % 100 == 0:
-            status = "warmup" if in_warmup else "sampling"
-            print(f"Gibbs iteration {outer_iter + 1}/{num_outer} ({status})")
-    
-    # Stack samples
-    beta_samples = np.stack(beta_samples, axis=0)  # (num_post_warmup, p, d)
-    u_samples = np.stack(u_samples, axis=0)        # (num_post_warmup, n, m)
-    
-    samples = dict(
-        beta=beta_samples,
-        u=u_samples,
-    )
-    
-    mcmc_info = dict(
-        num_outer_iterations=num_outer,
-        num_warmup_iterations=num_warmup_outer,
-        num_beta_steps=gibbs_config.num_beta_steps,
-        num_u_steps=gibbs_config.num_u_steps,
-    )
-    
-    return mcmc_info, samples
 
 
 # ============================================================
@@ -2306,7 +2116,6 @@ def run_experiment(
     m: int,
     tau_beta: float = 1.0,
     mcmc_config: Optional[MCMCConfig] = None,
-    gibbs_config: Optional[GibbsConfig] = None,
     diagnostic_config: Optional[DiagnosticConfig] = None,
     data_seed: int = 123,
     mcmc_seed: int = 456,
@@ -2329,8 +2138,6 @@ def run_experiment(
     tau_beta : float
         Prior variance for β.
     mcmc_config : MCMCConfig or None
-    gibbs_config : GibbsConfig or None
-        Only used if algorithm == "marginal_gibbs".
     diagnostic_config : DiagnosticConfig or None
     data_seed : int
         Seed for data generation.
@@ -2368,9 +2175,6 @@ def run_experiment(
         print("Due to green_mode=True in MCMCConfig, forcing algorithm to marginal_joint_green for stability (Only beta samples returned)")
 
     
-    # For Gibbs, ensure gibbs_config exists
-    if algorithm == "marginal_gibbs" and gibbs_config is None:
-        gibbs_config = GibbsConfig()
     
     os.makedirs(output_dir, exist_ok=True)
     
@@ -2380,7 +2184,6 @@ def run_experiment(
         n=n, p=p, d=d, m=m,
         tau_beta=tau_beta,
         mcmc_config=mcmc_config,
-        gibbs_config=gibbs_config,
         data_seed=data_seed,
         mcmc_seed=mcmc_seed,
     )
@@ -2454,17 +2257,6 @@ def run_experiment(
             rng_seed=mcmc_seed,
         )
         mcmc_or_info = mcmc
-
-    elif algorithm == "marginal_gibbs":
-        mcmc_info, samples = run_gibbs_marginal(
-            y, X, A, b,
-            tau_beta=tau_beta,
-            mcmc_config=mcmc_config,
-            gibbs_config=gibbs_config,
-            rng_seed=mcmc_seed,
-        )
-        mcmc_or_info = mcmc_info
-        mcmc = None  # No MCMC object for Gibbs
         
     else:
         raise ValueError(f"Unknown algorithm: {algorithm}")
@@ -2570,7 +2362,6 @@ def run_experiment(
             n=n, p=p, d=d, m=m,
             tau_beta=tau_beta,
             mcmc_config=mcmc_config,
-            gibbs_config=gibbs_config,
             diagnostic_config=diagnostic_config,
             data_seed=data_seed,
             mcmc_seed=mcmc_seed,
@@ -2587,7 +2378,6 @@ def run_experiment(
             n=n, p=p, d=d, m=m,
             tau_beta=tau_beta,
             mcmc_config=mcmc_config,
-            gibbs_config=gibbs_config,
             data_seed=data_seed,
             mcmc_seed=mcmc_seed,
             artifact_paths=artifact_paths,
@@ -2606,7 +2396,7 @@ def run_experiment(
 
 
 # ============================================================
-# SECTION 9: MAIN EXECUTION
+# SECTION 9: MAIN EXECUTION (demo)
 # ============================================================
 
 if __name__ == "__main__":
@@ -2629,20 +2419,13 @@ if __name__ == "__main__":
         target_accept_prob=0.75,
     )
     
-    gibbs_config = GibbsConfig(
-        num_beta_steps=5,
-        num_u_steps=5,
-        num_outer_iterations=1500,
-        num_warmup_iterations=500,
-    )
     
     diagnostic_config = DiagnosticConfig(
         max_plots=4,
         max_lag=50,
     )
     
-    # Run each algorithm
-    # algorithms = ["baseline", "marginal_joint", "marginal_gibbs"]
+    # Run algorithm
     algorithms = ["marginal_joint"]
     results = {}
     
@@ -2657,14 +2440,13 @@ if __name__ == "__main__":
                 n=n, p=p, d=d, m=m,
                 tau_beta=tau_beta,
                 mcmc_config=mcmc_config,
-                gibbs_config=gibbs_config if alg == "marginal_gibbs" else None,
                 diagnostic_config=diagnostic_config,
                 data_seed=data_seed,
                 mcmc_seed=456,
                 use_simulated_data=True,
                 save_results=True,
                 run_diagnostics=True,
-                output_dir="./demo_results",
+                output_dir="./results/hmc/demo_results",
             )
             results[alg] = (mcmc, samples, diagnostics)
             print(f"\n✓ {alg.upper()} completed successfully\n")

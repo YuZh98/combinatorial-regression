@@ -11,7 +11,7 @@ mkdir -p results/{runs,logs}
 # Kernel comparison defaults
 # -----------------------
 export JASA_RUN_TAG="${JASA_RUN_TAG:-kernel_compare}"
-export JASA_METHODS="${JASA_METHODS:-exponential,half_gaussian}"
+export JASA_METHODS="${JASA_METHODS:-exponential,halfgaussian}"
 
 # (d, m) pairs to run
 export JASA_D_LIST="${JASA_D_LIST:-5,20,50,200,1000}"

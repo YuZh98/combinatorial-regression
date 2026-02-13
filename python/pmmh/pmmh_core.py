@@ -8,19 +8,7 @@ Reference:
     Andrieu, C., & Roberts, G. O. (2009). The pseudo-marginal approach for efficient
     Monte Carlo computations. The Annals of Statistics, 37(2), 697-725.
 
-Key Requirements for PMMH Validity:
-    1. Likelihood estimator L̂(β) must be unbiased: E[L̂(β)] = L(β)
-    2. L̂(β_current) and L̂(β_proposed) must be independent random variables
-    3. Acceptance ratio must use log-scale arithmetic for numerical stability
-    4. Detailed balance must hold with respect to π(β | y) ∝ π(β) L(β | y)
-
-PMMH Acceptance Formula:
-    α = min(1, [π(β') L̂(β')] / [π(β) L̂(β)])
-    
-    In log scale:
-    log α = log π(β') + log L̂(β') - log π(β) - log L̂(β)
-    
-    Accept if log(U) < log α, where U ~ Uniform(0, 1)
+Because PMMH does not work well on high-dimensional problems, the dimension considered is low. So, for simplicity, we enumerate all feasible solutions to solve the optimization problem in this file.
 """
 
 import numpy as np
@@ -85,20 +73,6 @@ def make_pmmh_filename(
 def validate_beta_shape(beta: np.ndarray, p: int, d: int, context: str = "") -> None:
     """
     Validate that beta has the correct shape (p, d).
-    
-    β is always (p,d) because μ = Xβ must be (n,d).
-    Baseline parameterization (p,d-1) is intentionally not supported.
-    
-    This is the single source of truth for beta shape validation.
-    
-    Args:
-        beta: Parameter matrix to validate
-        p: Expected first dimension (number of covariates)
-        d: Expected second dimension (choice dimension)
-        context: Optional context string for error message
-        
-    Raises:
-        ValueError: If beta.shape != (p, d)
     """
     if beta.ndim != 2:
         raise ValueError(
@@ -108,7 +82,6 @@ def validate_beta_shape(beta: np.ndarray, p: int, d: int, context: str = "") -> 
     if beta.shape != (p, d):
         raise ValueError(
             f"{context}beta must have shape ({p}, {d}), got {beta.shape}. "
-            f"Baseline parameterization (p, d-1) is not supported."
         )
 
 
@@ -127,7 +100,7 @@ class PMMMHConfig:
     seed: int = 123  # Random seed for reproducibility
     
     # Adaptive proposal scaling (Robbins-Monro during burn-in)
-    adapt_proposal: bool = True  # Enable adaptive scaling
+    adapt_proposal: bool = False  # Enable adaptive scaling
     target_accept: float = 0.234  # Target acceptance rate (optimal for Gaussian)
     adapt_rate: float = 0.6  # Step size decay: γ_t ∝ t^(-adapt_rate)
     adapt_interval: int = 50  # Update scale every N iterations
@@ -450,7 +423,7 @@ class PseudoMarginalEstimator:
         Z_feasible: np.ndarray,
         M_mc: int,
         alpha_smooth: float = 0.0,
-        vectorized: bool = True,
+        vectorized: bool = False,
         batch_size: int = 100,
     ):
         """
@@ -514,8 +487,8 @@ class PseudoMarginalEstimator:
         Beta shape convention: Always (p, d).
         
         Args:
-            beta: (p, d) parameter matrix (STRICT: no baseline)
-            rng: NumPy random generator (for independent draws)
+            beta: (p, d) parameter matrix
+            rng: NumPy random generator
             
         Returns:
             Estimated log-likelihood (scalar, possibly -∞)
@@ -728,9 +701,6 @@ class PMMMHSampler:
             estimator: Likelihood estimator
             prior: Prior distribution with shape (p, d)
             proposal: Proposal distribution with shape (p, d)
-            
-        All components must have consistent (p, d) shapes.
-        Baseline parameterization is not supported.
         """
         # Strict shape validation - all must be (p, d)
         if estimator.p != prior.p or estimator.d != prior.d:
@@ -759,8 +729,6 @@ class PMMMHSampler:
     ) -> PMMMHResult:
         """
         Run PMMH sampler for n_iter iterations with optional adaptive scaling.
-        
-        Runtime is tracked and included in results.
         
         Adaptive Scaling (if config.adapt_proposal=True):
             - Adaptation occurs during burn-in only [adapt_start, burn_in)
@@ -871,7 +839,7 @@ class PMMMHSampler:
                             )
             
             # Progress
-            if verbose and (t + 1) % 1000 == 0:
+            if verbose and (t + 1) % 100 == 0:
                 acc_rate = n_accept / (t + 1)
                 status = "[Burn-in]" if t < config.burn_in else "[Post-burn]"
                 print(
