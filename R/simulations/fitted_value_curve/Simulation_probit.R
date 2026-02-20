@@ -36,7 +36,7 @@ get_env_str <- function(name, default) {
 # -------------------------------
 # Reproducibility / outputs
 # -------------------------------
-SEED <- get_env_int("JASA_SEED", 1234)
+SEED <- get_env_int("JASA_SEED", 123)
 set.seed(SEED)
 
 RESULTS_ROOT <- file.path("results", "runs", "probit")
@@ -59,7 +59,7 @@ capture.output(sessionInfo(), file = file.path(RUN_DIR, "sessionInfo.txt"))
 # -------------------------------
 # User-tunable settings
 # -------------------------------
-n <- get_env_int("JASA_N", 100)
+n <- get_env_int("JASA_N", 1000)
 p <- get_env_int("JASA_P", 2)
 d <- get_env_int("JASA_D", 2)
 
@@ -118,7 +118,6 @@ saveRDS(beta_true, file = file.path(RUN_DIR, "beta_true.rds"))
 #   beta_samples              (unconstrained)
 #   beta_samples_augmented    (constrained / ILP)
 #
-# If they currently depend on hard-coded paths, refactor them similarly.
 
 source(file.path("R", "simulations", "fitted_value_curve", "run_algorithm_unconstrained.R"))
 source(file.path("R", "simulations", "fitted_value_curve", "run_algorithm_constrained.R"))

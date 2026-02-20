@@ -11,14 +11,16 @@ mkdir -p results/logs
 # Defaults (override via env vars)
 # -----------------------
 export JASA_RUN_TAG="${JASA_RUN_TAG:-probit_default}"
-export JASA_SEED="${JASA_SEED:-1234}"
+export JASA_SEED="${JASA_SEED:-123}"
 
 # Simulation size (Section 5.1 defaults)
-export JASA_N="${JASA_N:-100}"
+export JASA_N="${JASA_N:-1000}"
 export JASA_P="${JASA_P:-2}"
 export JASA_D="${JASA_D:-2}"
 
 # Sampler controls (used by both unconstrained + constrained scripts)
+# NOTE: burn_in and thin are only used for printing out posterior mean of beta;
+# the samples saved to disc are still in their whole lengths.
 export JASA_PROBIT_N_ITER="${JASA_PROBIT_N_ITER:-20000}"
 export JASA_PROBIT_BURN_IN="${JASA_PROBIT_BURN_IN:-5000}"
 export JASA_PROBIT_THIN="${JASA_PROBIT_THIN:-10}"
