@@ -1,8 +1,7 @@
 # ------------------------------------------------------------
 # Simulation_probit.R
 # Section 5.1: Fitted value curve / constrained vs unconstrained probit
-# Repo scheme: run from repo root; write outputs to results/
-# ------------------------------------------------------------
+# Repo scheme: run from repo root; write outputs to results/runs/probit/probit_default ------------------------------------------------------------
 
 suppressPackageStartupMessages({
   library(truncnorm)

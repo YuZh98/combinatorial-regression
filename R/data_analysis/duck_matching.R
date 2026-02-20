@@ -3,9 +3,6 @@
 # Repo scheme: run from repo root; read data from data/; write outputs to results/
 # ------------------------------------------------------------
 
-# DO NOT clear the entire workspace in a reproducibility package.
-# If you want a clean run, run this script in a fresh R session.
-
 # Compile Rcpp dependencies (hit-and-run + TUM)
 source("R/src/common/cpp_build.R")
 
@@ -125,6 +122,7 @@ W_list <- list(W1 = W1, W2 = W2, W3 = W3)
 
 # Construct B (n x kappa)
 B <- bs(seq(0, 1, length.out = n), df = kappa, intercept = TRUE)
+write.csv(B, file = file.path(RUN_DIR, "B_matrix.csv"), row.names = FALSE) # save B for plotting in python
 
 # Find whether U can be non-zero
 U_free <- (t(A %*% t(y) == b)) * 1

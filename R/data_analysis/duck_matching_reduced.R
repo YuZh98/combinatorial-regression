@@ -125,6 +125,7 @@ W_list <- list(W1 = W1, W2 = W2, W3 = W3)
 
 # Construct B (n x kappa)
 B <- bs(seq(0, 1, length.out = n), df = kappa, intercept = TRUE)
+write.csv(B, file = file.path(RUN_DIR, "B_matrix.csv"), row.names = FALSE) # save B for plotting in python
 
 # U feasibility mask
 U_free <- (t(A %*% t(y) == b)) * 1
