@@ -6,9 +6,10 @@ help:
 	@echo "  make full         - heavier example run (simulation subset)"
 	@echo "  make duck_full    - run full duck model (data analysis)"
 	@echo "  make duck_reduced - run reduced duck model (data analysis)"
-	@echo "  make bf           - run full + reduced + Bayes factor pipeline"
 	@echo "  make clean        - remove results/"
 	@echo "  make kernel_compare - run u kernel comparison experiment (simulation)"
+	@echo "  make probit_smoke	 - fast smoke test for the probit simulation"
+	@echo "  make probit 	     - run full simulation for the fitted value curve"
 
 smoke:
 	bash scripts/run_smoke.sh
@@ -21,9 +22,6 @@ duck_full:
 
 duck_reduced:
 	bash scripts/run_duck_reduced.sh
-
-bf:
-	bash scripts/run_bayes_factor.sh
 
 clean:
 	rm -rf results

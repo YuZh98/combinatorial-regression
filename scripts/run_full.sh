@@ -9,13 +9,13 @@ mkdir -p results/{runs,figures,tables,logs}
 echo "[FULL] Running MH-within-Gibbs (example settings; adjust as needed)..."
 
 export JASA_RUN_TAG=full_example
-export JASA_D_LIST="2 5"
-export JASA_M_LIST="1 2"
+export JASA_D_LIST="2 5 10 100 1000"
+export JASA_M_LIST="1 2 5 10 20 50 100"
 export JASA_N_REP=1
-export JASA_N_ITER=1000
-export JASA_N_WARMUP=500
+export JASA_N_ITER=50000
+export JASA_N_WARMUP=5000
 export JASA_N_THIN=25
-export JASA_N_HAR=50
+export JASA_N_HAR=100
 export JASA_METHODS="exponential halfgaussian"
 export JASA_SAVE=true
 export JASA_PLOT=true

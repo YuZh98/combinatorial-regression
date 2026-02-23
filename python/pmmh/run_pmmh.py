@@ -1,6 +1,7 @@
 import numpy as np
 from pmmh_core import (
     generate_simulation_data,
+    make_pmmh_filename,
     PMMMHConfig,
     PMMMHSampler,
     PseudoMarginalEstimator,
@@ -22,8 +23,8 @@ def main():
     # Simulation parameters
     n = 1000          # Number of observations
     p = 5            # Number of covariates
-    d = 5            # Dimension of discrete choice
-    m = 2            # Number of constraints
+    d = 2            # Dimension of discrete choice
+    m = 1            # Number of constraints
     tau_prior = 1.0  # Prior variance (use same for data generation and inference)
     data_seed = 42
     
@@ -95,11 +96,58 @@ def main():
     print("(Progress printed every 1000 iterations)\n")
     
     result = sampler.run(config, init_beta=None, verbose=True)
+
+
+    # ========================================================================
+    # Step 5: Save Results (NPZ + PDF)
+    # ========================================================================
+    print("\n[Step 5] Saving results...")
+    
+    # Generate filename based on configuration
+    base_filename = make_pmmh_filename(
+        n_iter=config.n_iter,
+        n=n,
+        p=p,
+        d=d,
+        m=m,
+        M_mc=config.M_mc,
+        tau_prior=tau_prior,
+        proposal_scale_initial=config.proposal_scale,
+        alpha_smooth=config.alpha_smooth,
+        adapt_proposal=config.adapt_proposal,
+        seed=config.seed,
+    )
+    
+    print(f"Base filename: {base_filename}")
+    
+    # Output directories
+    npz_dir = "results/runs/pmmh/pmmh_samples"
+    pdf_dir = "results/runs/pmmh/pmmh_diagnostics"
+    
+    # Data dimensions for saving
+    data_dims = {
+        'n': n,
+        'p': p,
+        'd': d,
+        'm': m,
+        'K': Z_feasible.shape[0],
+        'tau_prior': tau_prior,
+    }
+    
+    # Save both artifacts
+    
+    result.save_all(
+        base_path=npz_dir + base_filename,
+        beta_true=beta_true,
+        data_dims=data_dims,
+    )
+    
+    
     
     # ========================================================================
-    # Step 5: Display Results
+    # Step 6: Display Results
     # ========================================================================
-    print("\n[Step 5] Results summary...")
+    print("\n[Step 6] Results summary...")
     
     # Basic info
     print(f"\nSamples shape: {result.samples.shape}")

@@ -51,9 +51,9 @@ import warnings
 CONSTRAINT_TOLERANCE = 1e-6
 
 # Directory paths with convenient defaults
-DEFAULT_SIM_DATA_DIR = "./Constraints/Simulation_DATA"
-DEFAULT_SIM_OUT_DIR = "./Constraints/Results/Simulation_HMC"
-DEFAULT_DIAG_DIR = "./Constraints/Results/NUTS_Diagnostics"
+DEFAULT_SIM_DATA_DIR = "data"
+DEFAULT_SIM_OUT_DIR = "./results/runs/hmc"
+DEFAULT_DIAG_DIR = "./results/runs/hmc"
 
 # Validation tolerance for post-sampling constraint checks
 VALIDATION_EPSILON = 1e-5
@@ -164,15 +164,7 @@ def build_run_stub(
     # Build base stub
     stub = f"{alg_str}__{dims_str}__{tau_str}__{mcmc_str}__{seed_str}"
     
-    # Add Gibbs-specific config if applicable
-    if algorithm == "marginal_gibbs" and gibbs_config is not None:
-        gibbs_str = (
-            f"gb{gibbs_config.num_beta_steps}_"
-            f"gu{gibbs_config.num_u_steps}_"
-            f"go{gibbs_config.num_outer_iterations}_"
-            f"gw{gibbs_config.num_warmup_iterations}"
-        )
-        stub = f"{stub}__{gibbs_str}"
+
     
     return stub
 

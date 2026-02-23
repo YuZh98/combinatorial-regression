@@ -136,6 +136,38 @@ class PMMMHConfig:
                 )
 
 
+# @dataclass
+# class PMMMHResult:
+#     """Container for PMMH sampling results."""
+#     samples: np.ndarray  # (n_iter, p, d) posterior samples
+#     loglik_trace: np.ndarray  # (n_iter,) estimated log-likelihood trace
+#     acceptance_trace: np.ndarray  # (n_iter,) boolean acceptance indicators
+#     config: PMMMHConfig  # Configuration used
+#     metadata: dict = field(default_factory=dict)  # Additional info (timing, beta_true, etc.)
+#     total_runtime_seconds: float = 0.0
+#     runtime_per_iter_seconds: float = 0.0
+#     timestamp_start: Optional[str] = None  # ISO format
+#     timestamp_end: Optional[str] = None    # ISO format
+    
+#     @property
+#     def acceptance_rate(self) -> float:
+#         """Overall acceptance rate."""
+#         return float(np.mean(self.acceptance_trace))
+    
+#     @property
+#     def samples_post_burnin(self) -> np.ndarray:
+#         """Samples after burn-in."""
+#         return self.samples[self.config.burn_in:, :, :]
+    
+#     @property
+#     def n_effective_samples(self) -> int:
+#         """Number of post-burn-in samples."""
+#         return self.samples.shape[0] - self.config.burn_in
+
+
+
+
+
 @dataclass
 class PMMMHResult:
     """Container for PMMH sampling results."""
@@ -163,7 +195,386 @@ class PMMMHResult:
     def n_effective_samples(self) -> int:
         """Number of post-burn-in samples."""
         return self.samples.shape[0] - self.config.burn_in
-
+    
+    def save_npz(
+        self,
+        filepath: str,
+        beta_true: Optional[np.ndarray] = None,
+        data_dims: Optional[dict] = None,
+    ) -> str:
+        """
+        Save PMMH results to .npz file.
+        
+        Args:
+            filepath: Path to save (with or without .npz extension)
+            beta_true: (p, d) true parameters if available
+            data_dims: Dict with keys n, p, d, m, K (data dimensions)
+            
+        Returns:
+            Absolute path to saved file
+        """
+        import os
+        
+        # Ensure .npz extension
+        if not filepath.endswith('.npz'):
+            filepath = filepath + '.npz'
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        
+        # Prepare data dictionary
+        save_dict = {
+            'beta_samples': self.samples,
+            'loglik_trace': self.loglik_trace,
+            'acceptance_trace': self.acceptance_trace,
+            'acceptance_rate': self.acceptance_rate,
+            'total_runtime_seconds': self.total_runtime_seconds,
+            'runtime_per_iter_seconds': self.runtime_per_iter_seconds,
+            'timestamp_start': self.timestamp_start,
+            'timestamp_end': self.timestamp_end,
+            # Config fields
+            'M_mc': self.config.M_mc,
+            'alpha_smooth': self.config.alpha_smooth,
+            'proposal_scale_initial': self.config.proposal_scale,
+            'n_iter': self.config.n_iter,
+            'burn_in': self.config.burn_in,
+            'seed': self.config.seed,
+            'adapt_proposal': self.config.adapt_proposal,
+            'target_accept': self.config.target_accept,
+        }
+        
+        # Add beta_true if provided
+        if beta_true is not None:
+            save_dict['beta_true'] = beta_true
+        
+        # Add data dimensions if provided
+        if data_dims is not None:
+            for key in ['n', 'p', 'd', 'm', 'K']:
+                if key in data_dims:
+                    save_dict[key] = data_dims[key]
+        
+        # Add metadata fields
+        for key, val in self.metadata.items():
+            if isinstance(val, (int, float, str, bool, np.ndarray)):
+                save_dict[f'metadata_{key}'] = val
+        
+        # Save
+        np.savez_compressed(filepath, **save_dict)
+        
+        return os.path.abspath(filepath)
+    
+    def save_report_pdf(
+        self,
+        filepath: str,
+        beta_true: Optional[np.ndarray] = None,
+        data_dims: Optional[dict] = None,
+        max_plots_per_type: int = 9,
+    ) -> str:
+        """
+        Generate comprehensive PDF diagnostic report.
+        
+        Args:
+            filepath: Path to save PDF (with or without .pdf extension)
+            beta_true: (p, d) true parameters if available
+            data_dims: Dict with n, p, d, m, K
+            max_plots_per_type: Maximum plots per diagnostic type (trace, ACF, hist)
+            
+        Returns:
+            Absolute path to saved PDF
+        """
+        import os
+        from pmmh_diagnostics import (
+            compute_summary_statistics,
+            compute_acf,
+        )
+        
+        # Ensure .pdf extension
+        if not filepath.endswith('.pdf'):
+            filepath = filepath + '.pdf'
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        
+        # Compute statistics
+        stats = compute_summary_statistics(self, beta_true)
+        
+        p, d = self.samples.shape[1], self.samples.shape[2]
+        
+        with PdfPages(filepath) as pdf:
+            # ================================================================
+            # Page 1: Summary Statistics
+            # ================================================================
+            fig = plt.figure(figsize=(11, 8.5))
+            fig.suptitle('PMMH Diagnostic Report', fontsize=16, fontweight='bold')
+            
+            # Build summary text
+            lines = []
+            lines.append("=" * 70)
+            lines.append("CONFIGURATION")
+            lines.append("=" * 70)
+            lines.append(f"Total iterations:     {self.config.n_iter}")
+            lines.append(f"Burn-in:              {self.config.burn_in}")
+            lines.append(f"Effective samples:    {self.n_effective_samples}")
+            lines.append(f"M_mc:                 {self.config.M_mc}")
+            lines.append(f"Alpha smooth:         {self.config.alpha_smooth}")
+            lines.append(f"Proposal scale init:  {self.config.proposal_scale}")
+            lines.append(f"Adaptive proposal:    {self.config.adapt_proposal}")
+            if self.config.adapt_proposal:
+                lines.append(f"Target accept:        {self.config.target_accept}")
+            lines.append(f"Seed:                 {self.config.seed}")
+            
+            if data_dims:
+                lines.append("")
+                lines.append("DATA DIMENSIONS")
+                lines.append("-" * 70)
+                for key in ['n', 'p', 'd', 'm', 'K']:
+                    if key in data_dims:
+                        lines.append(f"{key:20} {data_dims[key]}")
+            
+            lines.append("")
+            lines.append("=" * 70)
+            lines.append("RUNTIME")
+            lines.append("=" * 70)
+            lines.append(f"Total runtime:        {self.total_runtime_seconds:.2f} seconds "
+                        f"({self.total_runtime_seconds/60:.2f} minutes)")
+            lines.append(f"Per iteration:        {self.runtime_per_iter_seconds*1000:.2f} ms")
+            lines.append(f"Started:              {self.timestamp_start}")
+            lines.append(f"Ended:                {self.timestamp_end}")
+            
+            lines.append("")
+            lines.append("=" * 70)
+            lines.append("SAMPLING DIAGNOSTICS")
+            lines.append("=" * 70)
+            lines.append(f"Acceptance rate:      {stats['acceptance_rate']:.3f}")
+            
+            if 'final_scale' in self.metadata:
+                scale_change = self.metadata['final_scale'] / self.config.proposal_scale
+                lines.append(f"Final proposal scale: {self.metadata['final_scale']:.4f} "
+                            f"({scale_change:.2f}x initial)")
+            
+            lines.append("")
+            lines.append("ESS Summary:")
+            ess_flat = stats['ess_matrix'].flatten()
+            lines.append(f"  Min:     {np.min(ess_flat):.1f}")
+            lines.append(f"  Median:  {np.median(ess_flat):.1f}")
+            lines.append(f"  Max:     {np.max(ess_flat):.1f}")
+            
+            # Show worst ESS entries
+            idx_sorted = np.argsort(ess_flat)
+            lines.append("")
+            lines.append("Lowest ESS entries:")
+            for idx in idx_sorted[:min(5, len(idx_sorted))]:
+                j = idx // d
+                k = idx % d
+                lines.append(f"  beta[{j},{k}]:  ESS = {ess_flat[idx]:.1f}")
+            
+            lines.append("")
+            lines.append("=" * 70)
+            lines.append("POSTERIOR SUMMARY")
+            lines.append("=" * 70)
+            
+            # Decide whether to show full matrices or summary
+            if p * d <= 20:
+                lines.append("Posterior mean:")
+                lines.append(np.array2string(stats['posterior_mean'], precision=4, suppress_small=True))
+                lines.append("")
+                lines.append("Posterior std:")
+                lines.append(np.array2string(stats['posterior_std'], precision=4, suppress_small=True))
+            else:
+                lines.append(f"Posterior mean (p×d = {p}×{d}, showing summary only):")
+                mean_flat = stats['posterior_mean'].flatten()
+                lines.append(f"  Min:     {np.min(mean_flat):.4f}")
+                lines.append(f"  Median:  {np.median(mean_flat):.4f}")
+                lines.append(f"  Max:     {np.max(mean_flat):.4f}")
+                lines.append("")
+                lines.append("Posterior std (summary):")
+                std_flat = stats['posterior_std'].flatten()
+                lines.append(f"  Min:     {np.min(std_flat):.4f}")
+                lines.append(f"  Median:  {np.median(std_flat):.4f}")
+                lines.append(f"  Max:     {np.max(std_flat):.4f}")
+            
+            if beta_true is not None:
+                lines.append("")
+                lines.append(f"RMSE vs true:         {stats['rmse']:.4f}")
+                
+                if p * d <= 20:
+                    lines.append("")
+                    lines.append("Bias (posterior_mean - beta_true):")
+                    lines.append(np.array2string(stats['bias'], precision=4, suppress_small=True))
+                else:
+                    lines.append("")
+                    lines.append("Bias summary:")
+                    bias_flat = stats['bias'].flatten()
+                    lines.append(f"  Min:     {np.min(bias_flat):.4f}")
+                    lines.append(f"  Median:  {np.median(bias_flat):.4f}")
+                    lines.append(f"  Max:     {np.max(bias_flat):.4f}")
+                    lines.append(f"  Mean:    {np.mean(bias_flat):.4f}")
+            
+            # Add text to figure
+            text = '\n'.join(lines)
+            fig.text(0.1, 0.05, text, fontsize=8, family='monospace',
+                    verticalalignment='bottom')
+            
+            pdf.savefig(fig, bbox_inches='tight')
+            plt.close(fig)
+            
+            # ================================================================
+            # Page 2: Log-likelihood trace
+            # ================================================================
+            fig, ax = plt.subplots(figsize=(11, 6))
+            ax.plot(self.loglik_trace, lw=0.8, alpha=0.7)
+            ax.axvline(self.config.burn_in, color='red', linestyle='--', 
+                      linewidth=2, label='Burn-in end')
+            ax.set_xlabel("Iteration", fontsize=12)
+            ax.set_ylabel("log L̂(β)", fontsize=12)
+            ax.set_title("Log-Likelihood Trace", fontsize=14, fontweight='bold')
+            ax.legend(fontsize=10)
+            ax.grid(alpha=0.3)
+            plt.tight_layout()
+            pdf.savefig(fig)
+            plt.close(fig)
+            
+            # ================================================================
+            # Page 3: Acceptance rate trace
+            # ================================================================
+            window = min(100, self.config.n_iter // 10)
+            acceptance_float = self.acceptance_trace.astype(float)
+            
+            if len(acceptance_float) >= window:
+                rolling = np.convolve(acceptance_float, np.ones(window)/window, mode='valid')
+                x = np.arange(window-1, len(acceptance_float))
+            else:
+                rolling = acceptance_float
+                x = np.arange(len(acceptance_float))
+            
+            fig, ax = plt.subplots(figsize=(11, 6))
+            ax.plot(x, rolling, lw=1.0, label=f'Rolling mean (window={window})')
+            ax.axhline(self.acceptance_rate, color='red', linestyle='--', 
+                      linewidth=2, label=f'Overall: {self.acceptance_rate:.3f}')
+            ax.axhline(0.234, color='green', linestyle=':', linewidth=2, 
+                      label='Target: 0.234')
+            ax.axvline(self.config.burn_in, color='orange', linestyle='--', 
+                      alpha=0.5, linewidth=2, label='Burn-in end')
+            ax.set_xlabel("Iteration", fontsize=12)
+            ax.set_ylabel(f"Acceptance Rate", fontsize=12)
+            ax.set_title("Rolling Acceptance Rate", fontsize=14, fontweight='bold')
+            ax.set_ylim([0, 1])
+            ax.legend(fontsize=10)
+            ax.grid(alpha=0.3)
+            plt.tight_layout()
+            pdf.savefig(fig)
+            plt.close(fig)
+            
+            # ================================================================
+            # Determine which beta elements to plot
+            # ================================================================
+            all_indices = [(j, k) for j in range(p) for k in range(d)]
+            
+            if len(all_indices) <= max_plots_per_type:
+                plot_indices = all_indices
+            else:
+                # Select subset: corners + center + some random
+                plot_indices = [
+                    (0, 0),                    # Top-left
+                    (0, d-1),                  # Top-right
+                    (p-1, 0),                  # Bottom-left
+                    (p-1, d-1),                # Bottom-right
+                    (p//2, d//2),              # Center
+                ]
+                # Add random sample
+                remaining = [idx for idx in all_indices if idx not in plot_indices]
+                if remaining:
+                    n_extra = min(max_plots_per_type - len(plot_indices), len(remaining))
+                    extra = np.random.default_rng(42).choice(len(remaining), size=n_extra, replace=False)
+                    plot_indices.extend([remaining[i] for i in extra])
+            
+            samples_post = self.samples_post_burnin
+            
+            # ================================================================
+            # Trace plots
+            # ================================================================
+            for j, k in plot_indices:
+                fig, ax = plt.subplots(figsize=(11, 5))
+                ax.plot(samples_post[:, j, k], lw=0.8, alpha=0.7)
+                
+                if beta_true is not None:
+                    ax.axhline(beta_true[j, k], color='red', linestyle='--', 
+                              linewidth=2, label=f'True: {beta_true[j, k]:.3f}')
+                    ax.legend(fontsize=10)
+                
+                ax.set_xlabel("Iteration (post-burn-in)", fontsize=12)
+                ax.set_ylabel(f"beta[{j},{k}]", fontsize=12)
+                ax.set_title(f"Trace Plot: beta[{j},{k}]", fontsize=14, fontweight='bold')
+                ax.grid(alpha=0.3)
+                plt.tight_layout()
+                pdf.savefig(fig)
+                plt.close(fig)
+            
+            # ================================================================
+            # ACF plots
+            # ================================================================
+            max_lag = min(50, samples_post.shape[0] // 4)
+            for j, k in plot_indices:
+                lags, acf = compute_acf(samples_post[:, j, k], max_lag=max_lag)
+                
+                fig, ax = plt.subplots(figsize=(11, 5))
+                ax.stem(lags, acf, linefmt='C0-', markerfmt='C0o', basefmt='C0-')
+                ax.axhline(0, color='black', lw=0.8, linestyle='--')
+                ax.set_xlabel("Lag", fontsize=12)
+                ax.set_ylabel("ACF", fontsize=12)
+                ax.set_title(f"Autocorrelation: beta[{j},{k}]", fontsize=14, fontweight='bold')
+                ax.grid(alpha=0.3)
+                plt.tight_layout()
+                pdf.savefig(fig)
+                plt.close(fig)
+            
+            # ================================================================
+            # Histogram plots
+            # ================================================================
+            bins = min(30, samples_post.shape[0] // 20)
+            for j, k in plot_indices:
+                fig, ax = plt.subplots(figsize=(11, 5))
+                ax.hist(samples_post[:, j, k], bins=bins, density=True, 
+                       alpha=0.7, edgecolor='black')
+                
+                if beta_true is not None:
+                    ax.axvline(beta_true[j, k], color='red', linestyle='--', 
+                              linewidth=2, label=f'True: {beta_true[j, k]:.3f}')
+                    ax.legend(fontsize=10)
+                
+                ax.set_xlabel(f"beta[{j},{k}]", fontsize=12)
+                ax.set_ylabel("Density", fontsize=12)
+                ax.set_title(f"Posterior Distribution: beta[{j},{k}]", 
+                           fontsize=14, fontweight='bold')
+                ax.grid(alpha=0.3)
+                plt.tight_layout()
+                pdf.savefig(fig)
+                plt.close(fig)
+        
+        return os.path.abspath(filepath)
+    
+    def save_all(
+        self,
+        base_path: str,
+        beta_true: Optional[np.ndarray] = None,
+        data_dims: Optional[dict] = None,
+        max_plots_per_type: int = 9,
+    ) -> Tuple[str, str]:
+        """
+        Save both NPZ and PDF with matching filenames.
+        
+        Args:
+            base_path: Base filepath (without extension)
+            beta_true: (p, d) true parameters if available
+            data_dims: Dict with n, p, d, m, K
+            max_plots_per_type: Max plots per diagnostic type
+            
+        Returns:
+            (npz_path, pdf_path) tuple of absolute paths
+        """
+        npz_path = self.save_npz(base_path + '.npz', beta_true, data_dims)
+        pdf_path = self.save_report_pdf(base_path + '.pdf', beta_true, data_dims, max_plots_per_type)
+        return npz_path, pdf_path
 
 # ============================================================================
 # Abstract Base Classes for Priors and Proposals
