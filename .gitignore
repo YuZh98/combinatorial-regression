@@ -3,7 +3,6 @@ results/
 output/
 *.pdf
 *.png
-*.csv
 
 # R
 .Rhistory
