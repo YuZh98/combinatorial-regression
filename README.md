@@ -1,4 +1,4 @@
-# JASA Reproducibility Repository
+# Statistical Modeling for Combinatorial Response Data Reproducibility Repository
 
 This repository contains code and data to reproduce the results in the paper.
 
