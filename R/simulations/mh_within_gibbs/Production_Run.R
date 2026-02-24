@@ -202,9 +202,22 @@ simulate_data <- function(n, p, d, m) {
 # PLOTTING FUNCTIONS
 # ============================================================
 
-trace_plot <- function(beta_samples, p, d, n_warmup, n_iter, beta_true) {
+
+
+trace_plot <- function(beta_samples, p, d, n_warmup, n_iter, beta_true,
+                       out_dir = RUN_DIR, filename = "trace_plot.png",
+                       width = 1200, height = 900, res = 150) {
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  out_path <- file.path(out_dir, filename)
+
+  png(out_path, width = width, height = height, res = res)
+  on.exit(dev.off(), add = TRUE)
+
   row_index <- 1:min(p, 2)
   col_index <- 1:min(d, 2)
+  old_par <- par(no.readonly = TRUE)
+  on.exit(par(old_par), add = TRUE)
+
   par(mfrow = c(length(row_index), length(col_index)))
   for (k in row_index) {
     for (j in col_index) {
@@ -218,12 +231,26 @@ trace_plot <- function(beta_samples, p, d, n_warmup, n_iter, beta_true) {
       abline(h = beta_true[k, j], col = "red")
     }
   }
+
+  invisible(out_path)
 }
 
-ACF_plot <- function(beta_samples, p, d, n_warmup, n_iter, thin = 25) {
+ACF_plot <- function(beta_samples, p, d, n_warmup, n_iter, thin = 25,
+                     out_dir = RUN_DIR, filename = "acf_plot.png",
+                     width = 1200, height = 900, res = 150) {
+  dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
+  out_path <- file.path(out_dir, filename)
+
+  png(out_path, width = width, height = height, res = res)
+  on.exit(dev.off(), add = TRUE)
+
   row_index <- 1:min(p, 2)
   col_index <- 1:min(d, 2)
+  old_par <- par(no.readonly = TRUE)
+  on.exit(par(old_par), add = TRUE)
+
   par(mfrow = c(length(row_index), length(col_index)))
+
   thinned_indices <- seq(from = n_warmup + 1, to = n_iter, by = thin)
   for (k in row_index) {
     for (j in col_index) {
@@ -233,7 +260,10 @@ ACF_plot <- function(beta_samples, p, d, n_warmup, n_iter, thin = 25) {
       )
     }
   }
+
+  invisible(out_path)
 }
+
 
 
 # ============================================================
@@ -484,12 +514,16 @@ for (d in d_list) {
             if (config$button_plot) {
               tryCatch(
                 {
+                  fig_dir = file.path(RUN_DIR, "figures")
+
                   trace_plot(
                     results$beta_samples,
                     p, d,
                     config$n_warmup,
                     config$n_iter,
-                    results$beta_true
+                    results$beta_true,
+                    out_dir = fig_dir,
+                    filename = "trace.png"
                   )
                   
                   ACF_plot(
@@ -497,8 +531,12 @@ for (d in d_list) {
                     p, d,
                     config$n_warmup,
                     config$n_iter,
-                    thin = config$n_thin
+                    thin = config$n_thin,
+                    out_dir = fig_dir,
+                    filename = "acf.png"
                   )
+
+                  cat("Saved plots to: ", fig_dir, "\n", sep = "")
                 },
                 error = function(e) {
                   warning(sprintf(

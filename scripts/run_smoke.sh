@@ -19,7 +19,7 @@ export JASA_N_THIN=10
 export JASA_N_HAR=10
 export JASA_METHODS=exponential
 export JASA_SAVE=false
-export JASA_PLOT=false
+export JASA_PLOT=true
 
 Rscript R/simulations/mh_within_gibbs/Production_Run.R | tee results/logs/mh_within_gibbs_smoke.log
 
