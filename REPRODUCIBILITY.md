@@ -219,31 +219,31 @@ JASA_PLOT
 ```
 
 
-    ```JASA_N_ITER```: the number of iterations;
+  ```JASA_N_ITER```: the number of iterations;
 
-    ```JASA_N_WARMUP```: the number of warmup steps;
+  ```JASA_N_WARMUP```: the number of warmup steps;
 
-    ```JASA_N_THIN```: the thinning parameter; 
+  ```JASA_N_THIN```: the thinning parameter; 
 
-    ```JASA_N_REP```: the number of experiment repetition for each setting;
+  ```JASA_N_REP```: the number of experiment repetition for each setting;
 
-    ```JASA_N_HAR```: the number of iterations for the inner loop that runs the hit-and-run algorithm;
+  ```JASA_N_HAR```: the number of iterations for the inner loop that runs the hit-and-run algorithm;
 
-    ```JASA_D_LIST```: a list of values of $d$ (the response data dimension);
+  ```JASA_D_LIST```: a list of values of $d$ (the response data dimension);
 
-    ```JASA_M_LIST```: a list of values of $m$ (the number of contraints);
+  ```JASA_M_LIST```: a list of values of $m$ (the number of contraints);
 
-    ```JASA_P```: the value of $p$ (the number of covariates);
+  ```JASA_P```: the value of $p$ (the number of covariates);
 
-    ```JASA_n```: the value of $n$ (the number of data samples);
+  ```JASA_n```: the value of $n$ (the number of data samples);
 
-    ```JASA_METHOD```: the kernel assigned to $u^{(i)}$ (default is "exponential halfgaussian"; however, halfgaussian will be ignored unless JASA_RUN_TAG is set as kernel_compare);
+  ```JASA_METHOD```: the kernel assigned to $u^{(i)}$ (default is "exponential halfgaussian"; however, halfgaussian will be ignored unless JASA_RUN_TAG is set as kernel_compare);
 
-    ```JASA_RUN_TAG```: the tag for experiment;
+  ```JASA_RUN_TAG```: the tag for experiment;
 
-    ```JASA_SAVE```: boolean, whether or not save the sampling results;
+  ```JASA_SAVE```: boolean, whether or not save the sampling results;
 
-    ```JASA_PLOT```: boolean, whether or not draw trace plots and ACF plots in R.
+  ```JASA_PLOT```: boolean, whether or not draw trace plots and ACF plots in R.
 
 
 Note that when writing the posterior samples from the MH-Within-Gibbs sampler, all of the samples are saved irrespective of the warmup and thinning parameters. That is, if the number of iterations is $n_{iter}$, then the beta samples are saved as an array of shape $(n_{iter}, p, d)$.
