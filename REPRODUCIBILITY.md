@@ -141,7 +141,7 @@ results/runs/mh_within_gibbs/kernel_compare/
 
 ---
 
-## 4.3 Quick Smoke Test
+## 4.3 Sanity Check
 
 To verify the entire pipeline works:
 

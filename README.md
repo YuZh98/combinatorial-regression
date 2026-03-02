@@ -12,9 +12,9 @@ results/
 
 ---
 
-# 🚀 Quick Start
+# Quick Start
 
-### 1️⃣ Smoke test (sanity check)
+### 1️⃣ Sanity check
 
 ```bash
 make smoke
@@ -38,7 +38,6 @@ make full
   ```
   results/runs/mh_within_gibbs/
   ```
-
 
 ---
 
