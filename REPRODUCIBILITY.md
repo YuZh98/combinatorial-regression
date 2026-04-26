@@ -2,7 +2,9 @@
 
 This document explains how to reproduce the main results of the paper and how the repository is organized.
 
-- All commands for the main paper must be run from the **repository root**. 
+> **Before running anything:** install the R and Python dependencies. See [INSTALL.md](INSTALL.md) for step-by-step instructions, package lists, and platform notes.
+
+- All commands for the main paper must be run from the **repository root**.
 
 - All generated outputs are written under:
 
@@ -15,9 +17,6 @@ results/
 ```
 python/plots/plotting.ipynb
 ```
-
-
-
 
 ---
 

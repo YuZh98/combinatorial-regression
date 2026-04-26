@@ -10,6 +10,8 @@ Generated outputs are written to:
 results/
 ```
 
+> **First time?** Set up R and Python dependencies first — see [INSTALL.md](INSTALL.md).
+
 ---
 
 # Quick Start
