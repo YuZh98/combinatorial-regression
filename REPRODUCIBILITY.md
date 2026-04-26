@@ -112,7 +112,7 @@ results/runs/probit
 ---
 
 
-## 4.2 Kernel Comparison (Supplementary)
+## 4.3 Kernel Comparison (Supplementary)
 
 The supplementary material compares two kernels for updating the auxiliary variable \( u \):
 
@@ -141,7 +141,7 @@ results/runs/mh_within_gibbs/kernel_compare/
 
 ---
 
-## 4.3 Sanity Check
+## 4.4 Sanity Check
 
 To verify the entire pipeline works:
 
