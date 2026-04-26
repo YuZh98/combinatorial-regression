@@ -33,6 +33,11 @@ make full
 
 - The default setting does not run the full grid of simulation settings in the paper, to save time. To run the sampler with custom settings, change the corresponding environment variables first. See §6 in ```REPRODUCIBILITY.md``` for details.
 
+- **Note:** `scripts/run_full.sh` defaults to `JASA_METHODS="exponential halfgaussian"`, so `make full` produces results for **both** kernels in one pass. The main paper uses only the exponential kernel; the half-Gaussian results feed into Supplementary Table 3. To run only the main-paper kernel:
+  ```bash
+  JASA_METHODS=exponential make full
+  ```
+
 - Outputs saved under:
   ```
   results/runs/mh_within_gibbs/

@@ -71,13 +71,15 @@ R/simulations/mh_within_gibbs/Production_Run.R
 
 ### Default behavior (main paper)
 
-- Kernel for auxiliary variable \( u \): **exponential**
+- Kernel for auxiliary variable \( u \) (in the paper): **exponential**
 - Only partial simulation grid over:
   - `d_list = 2,5`
   - `m_list = 1,2`
-- Default iterations:
+- Default iterations (when invoked via `make full`):
   - `n_iter = 50000`
   - `n_warmup = 5000`
+
+> ⚠ Direct invocation (`Rscript R/simulations/mh_within_gibbs/Production_Run.R` without env vars) uses the smaller in-script defaults `n_iter=5000`, `n_warmup=2000`. The `50000`/`5000` numbers above only apply when invoked via `scripts/run_full.sh` / `make full`, which exports them.
 
 ### Run full simulation
 
@@ -85,13 +87,18 @@ R/simulations/mh_within_gibbs/Production_Run.R
 make full
 ```
 
+> 📝 **Both kernels by default.** `scripts/run_full.sh` exports `JASA_METHODS="exponential halfgaussian"`, so `make full` actually writes results for **both** kernels — exponential (main paper) and half-Gaussian (Supplementary Table 3). To run only the main-paper kernel:
+> ```bash
+> JASA_METHODS=exponential make full
+> ```
+
 Outputs are written to:
 
 ```
 results/runs/mh_within_gibbs/<RUN_TAG>/
 ```
 
-(Default `RUN_TAG = default` unless overridden.)
+(Default `RUN_TAG = full_example` when invoked via `scripts/run_full.sh`; `default` when invoked directly via `Rscript`.)
 
 ---
 
