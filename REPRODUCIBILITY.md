@@ -198,58 +198,68 @@ results/runs/data_analysis/duck_reduced/
 
 # 6. Environment Variable Controls
 
-All scripts support overrides via environment variables. 
+All scripts support overrides via environment variables. Variables are grouped below by which entry script reads them. Defaults shown are the in-script defaults; the wrapper bash scripts in `scripts/` may set different values before invoking R (see §10 and the script source for those overrides).
 
-Common variables:
+## 6.1 Shared variables
 
-```
-JASA_N_ITER
-JASA_N_WARMUP
-JASA_N_THIN
-JASA_N_REP
-JASA_N_HAR
-JASA_D_LIST
-JASA_M_LIST
-JASA_P
-JASA_N
-JASA_METHODS
-JASA_RUN_TAG
-JASA_SAVE
-JASA_PLOT
-```
+| Variable | Read by | Default | Description |
+|---|---|---|---|
+| `JASA_RUN_TAG` | all entry scripts | varies (`default`, `probit_default`, `reduced_default`) | Tag used to name the per-run output subfolder under `results/runs/<method>/`. |
+| `JASA_SEED` | `Simulation_probit.R` | `123` | RNG seed (other R scripts hardcode `set.seed(123)` and do not honor this). |
 
+## 6.2 MH-within-Gibbs simulation (`R/simulations/mh_within_gibbs/Production_Run.R`)
 
-  ```JASA_N_ITER```: the number of iterations;
+| Variable | Default | Description |
+|---|---|---|
+| `JASA_N_ITER` | `5000` | Total MCMC iterations. |
+| `JASA_N_WARMUP` | `2000` | Warmup steps (used only for the in-script RMSE print and trace/ACF plots; the saved samples include warmup). |
+| `JASA_N_THIN` | `25` | Thinning factor (used only for ACF plots and the in-script print; saved samples are not thinned). |
+| `JASA_N_REP` | `1` | Number of independent simulation repetitions per `(d, m)` cell. |
+| `JASA_N_HAR` | `100` | Inner-loop iterations for the hit-and-run sampler. |
+| `JASA_D_LIST` | `2,5,10,20` | Comma- or space-separated list of response dimensions $d$. |
+| `JASA_M_LIST` | `1,2,5,10` | Comma- or space-separated list of constraint counts $m$. Cases with $m \ge d$ are skipped. |
+| `JASA_P` | `5` | Number of covariates. |
+| `JASA_N` | `1000` | Number of observations. |
+| `JASA_METHODS` | `exponential` | Comma- or space-separated list of kernels for $u^{(i)}$. Only `exponential` and `halfgaussian` are recognized — other values are silently skipped. `scripts/run_full.sh` overrides this to `"exponential halfgaussian"`. |
+| `JASA_SAVE` | `TRUE` | Save per-case `*_beta_samples.rds` / `*_beta_true.rds`. |
+| `JASA_PLOT` | `TRUE` | Generate trace and ACF PNGs (warmup and thinning are applied here, unlike the saved samples). |
 
-  ```JASA_N_WARMUP```: the number of warmup steps;
+Note: posterior samples from this sampler are written **without** discarding warmup or thinning — i.e. the saved `beta_samples` array has shape $(n_{\text{iter}}, p, d)$. Warmup and thinning only affect the in-script RMSE print and the trace/ACF plots.
 
-  ```JASA_N_THIN```: the thinning parameter; 
+You can also bypass env vars entirely by editing the `CONFIGURATION` block (lines 78–98) of `R/simulations/mh_within_gibbs/Production_Run.R`.
 
-  ```JASA_N_REP```: the number of experiment repetition for each setting;
+## 6.3 Waterfowl data analysis (`R/data_analysis/duck_matching.R`, `duck_matching_reduced.R`)
 
-  ```JASA_N_HAR```: the number of iterations for the inner loop that runs the hit-and-run algorithm;
+| Variable | Default | Description |
+|---|---|---|
+| `JASA_DATA_DIR` | `data/waterfowl_matching` | Directory containing `duck_data.csv`, `A_tilde_matrix.csv`, `Z_matrix.csv`. |
+| `JASA_N_ITER` | `50000` | Total Gibbs iterations. |
+| `JASA_N_WARMUP` | `5000` | Warmup (recorded in metadata; not enforced on saved samples). |
+| `JASA_N_THIN` | `1` | Thinning (recorded in metadata; not enforced on saved samples). |
+| `JASA_K` | `7` | Number of species groups (full model only; the reduced model fixes $K=2$). |
+| `JASA_KAPPA` | `5` | Number of B-spline basis functions. |
+| `JASA_TAU_A` | `0.1` | Prior precision for $a$. |
+| `JASA_TAU_RHO` | `0.1` | Prior precision for $\rho$. |
+| `JASA_SAVE_RHO` | `TRUE` | Save the `rho_samples` array. |
+| `JASA_SAVE_A` | `TRUE` | Save the `a_samples` array. |
+| `JASA_SAVE_ZETA` | `FALSE` | Save the `zeta_samples` array. **Off by default**: with `n_iter=50000`, `n=18`, `d=339`, this is ≈ 2.4 GB. |
 
-  ```JASA_D_LIST```: a list of values of $d$ (the response data dimension);
+Note: `loop_hit_and_run`'s inner-loop length is hardcoded to `100` in the duck scripts and does **not** honor `JASA_N_HAR`.
 
-  ```JASA_M_LIST```: a list of values of $m$ (the number of contraints);
+## 6.4 Probit fitted-value-curve (`R/simulations/fitted_value_curve/Simulation_probit.R` and its sourced sub-scripts)
 
-  ```JASA_P```: the value of $p$ (the number of covariates);
-
-  ```JASA_N```: the value of $n$ (the number of data samples);
-
-  ```JASA_METHODS```: comma- or space-separated list of kernels for $u^{(i)}$ (default in `Production_Run.R` is `"exponential"`; `scripts/run_full.sh` overrides to `"exponential halfgaussian"`; only `exponential` and `halfgaussian` are recognized — other values are silently skipped);
-
-  ```JASA_RUN_TAG```: the tag for experiment;
-
-  ```JASA_SAVE```: boolean, whether or not save the sampling results;
-
-  ```JASA_PLOT```: boolean, whether or not draw trace plots and ACF plots in R.
-
-
-Note that when writing the posterior samples from the MH-Within-Gibbs sampler, all of the samples are saved irrespective of the warmup and thinning parameters. That is, if the number of iterations is $n_{iter}$, then the beta samples are saved as an array of shape $(n_{iter}, p, d)$.
-As for the environment variables for controlling the numebr of warmup or thinning steps, they are only used when showing the immediate sampling results after running the R script. For example, the reported RMSE is based on the mean of the posterior samples after the warmup stage (still no thinning applied). If the environment variable ```JASA_PLOT``` is set true, then trace plots and ACF plots will be generated after an MCMC chain is done, with the warmup and thinning parameters being applied.
-
-Another way to use custom settings is to directly change config in the CONFIGURATION section (from line 78 to line 98) in R/simulations/mh_within_gibbs/Production_Run.R
+| Variable | Default | Description |
+|---|---|---|
+| `JASA_SEED` | `123` | RNG seed for this experiment. |
+| `JASA_N` | `1000` | Number of observations. |
+| `JASA_P` | `2` | Number of covariates (must equal `ncol(X)` after intercept). |
+| `JASA_D` | `2` | Response dimension. |
+| `JASA_PLOT` | `FALSE` | Save trace PNGs for both unconstrained and constrained (ILP) samplers. |
+| `JASA_PROBIT_N_ITER` | `20000` | MCMC iterations for both sub-samplers. |
+| `JASA_PROBIT_N_HAR` | `100` | Inner-loop iterations for hit-and-run (constrained sampler only). |
+| `JASA_PROBIT_BURN_IN` | `5000` | Burn-in for the in-script posterior mean / RMSE print (saved samples are full-length). |
+| `JASA_PROBIT_THIN` | `10` | Thinning for the in-script print only. |
+| `JASA_PROBIT_LOG_EVERY` | `100` (constrained) / `0` (unconstrained, quiet) | Print iteration progress every N steps. |
 
 
 
