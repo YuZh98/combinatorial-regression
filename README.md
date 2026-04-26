@@ -31,10 +31,9 @@ Runs a lightweight simulation and data analysis to verify everything works.
 make full
 ```
 
-- The default setting does not run full grid of simulation settings in the paper to save time. To run the sampler in custom settings, change the corresponding enviroment variables first. See Section 6 in ```REPRODUCIBILITY.md``` for details. 
-    
+- The default setting does not run the full grid of simulation settings in the paper, to save time. To run the sampler with custom settings, change the corresponding environment variables first. See §6 in ```REPRODUCIBILITY.md``` for details.
 
-- Outputs saved under: (default is 1000)
+- Outputs saved under:
   ```
   results/runs/mh_within_gibbs/
   ```
@@ -82,7 +81,7 @@ make duck_reduced
 
 # ⚙️ Custom Settings
 
-All scripts support environment-variable overrides. For more details, see section 6 in ```REPRODUCILITY.md```.
+All scripts support environment-variable overrides. For more details, see §6 in ```REPRODUCIBILITY.md```.
 
 Example:
 
