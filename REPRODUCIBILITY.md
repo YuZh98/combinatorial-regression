@@ -235,9 +235,9 @@ JASA_PLOT
 
   ```JASA_P```: the value of $p$ (the number of covariates);
 
-  ```JASA_n```: the value of $n$ (the number of data samples);
+  ```JASA_N```: the value of $n$ (the number of data samples);
 
-  ```JASA_METHOD```: the kernel assigned to $u^{(i)}$ (default is "exponential halfgaussian"; however, halfgaussian will be ignored unless JASA_RUN_TAG is set as kernel_compare);
+  ```JASA_METHODS```: comma- or space-separated list of kernels for $u^{(i)}$ (default in `Production_Run.R` is `"exponential"`; `scripts/run_full.sh` overrides to `"exponential halfgaussian"`; only `exponential` and `halfgaussian` are recognized — other values are silently skipped);
 
   ```JASA_RUN_TAG```: the tag for experiment;
 
