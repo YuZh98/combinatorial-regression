@@ -86,11 +86,6 @@ R/simulations/mh_within_gibbs/Production_Run.R
 make full
 ```
 
-> 📝 **Both kernels by default.** `scripts/run_full.sh` exports `JASA_METHODS="exponential halfgaussian"`, so `make full` actually writes results for **both** kernels — exponential (main paper) and half-Gaussian (Supplementary Table 3). To run only the main-paper kernel:
-> ```bash
-> JASA_METHODS=exponential make full
-> ```
-
 Outputs are written to:
 
 ```
@@ -244,13 +239,16 @@ You can also bypass env vars entirely by editing the `CONFIGURATION` block (line
 | `JASA_N_THIN` | `1` | Thinning (recorded in metadata; not enforced on saved samples). |
 | `JASA_K` | `7` | Number of species groups (full model only; the reduced model fixes $K=2$). |
 | `JASA_KAPPA` | `5` | Number of B-spline basis functions. |
-| `JASA_TAU_A` | `0.1` | Prior precision for $a$. |
-| `JASA_TAU_RHO` | `0.1` | Prior precision for $\rho$. |
+| `JASA_TAU_A` | `0.1` | $\tau_\alpha$ |
+| `JASA_TAU_RHO` | `0.1` | $\tau_\beta$ |
 | `JASA_SAVE_RHO` | `TRUE` | Save the `rho_samples` array. |
 | `JASA_SAVE_A` | `TRUE` | Save the `a_samples` array. |
 | `JASA_SAVE_ZETA` | `FALSE` | Save the `zeta_samples` array. **Off by default**: with `n_iter=50000`, `n=18`, `d=339`, this is ≈ 2.4 GB. |
 
 Note: `loop_hit_and_run`'s inner-loop length is hardcoded to `100` in the duck scripts and does **not** honor `JASA_N_HAR`.
+
+Note also that there is misalignmenet between the paper and code in the naming of parameters for the duck model: the paper's $(\beta_{0},\beta_{1:1},\beta_{1:2})$ and $\beta_{2}$ correspond to `a` and `rho` in the code, respectively. 
+
 
 ## 6.4 Probit fitted-value-curve (`R/simulations/fitted_value_curve/Simulation_probit.R` and its sourced sub-scripts)
 
@@ -275,7 +273,7 @@ Example custom run:
 JASA_N_ITER=20000 JASA_RUN_TAG=test_run make full
 ```
 ```bash
-JASA_METHODS=exponential,half_gaussian make full
+JASA_METHODS=exponential make full
 ```
 
 ---
