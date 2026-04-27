@@ -8,7 +8,7 @@ This folder contains a single Jupyter notebook, **`plotting.ipynb`**, that repro
 
 ## Contents
 
-- [`plotting.ipynb`](plotting.ipynb) — the notebook described below. Tracked in git as `Plotting.ipynb` (capital `P`); see the [Known issues](#known-issues) section if you're on a case-sensitive filesystem.
+- [`plotting.ipynb`](plotting.ipynb) — the notebook described below.
 - This `README.md`.
 
 ---
@@ -24,7 +24,7 @@ The notebook reads pre-computed MCMC outputs from `../../results/runs/`. Run the
 | §4 Waterfowl matching — full model | Duck full (R) | `make duck_full` | `results/runs/data_analysis/duck_full/*.rds`, `B_matrix.csv` |
 | §4 Waterfowl matching — reduced model | Duck reduced (R) | `make duck_reduced` | `results/runs/data_analysis/duck_reduced/*.rds`, `B_matrix.csv` |
 | §5 NUTS-HMC | NUTS-HMC (Python) | run `python/hmc/batch_run_nuts.ipynb` | `results/runs/hmc/*__samples.npz` |
-| §6 PMMH | PMMH (Python) | `python python/pmmh/run_pmmh.py` | `results/runs/pmmh/...PMMH_iter*.npz` (see [Known issues](#known-issues) for path layout) |
+| §6 PMMH | PMMH (Python) | `python python/pmmh/run_pmmh.py` | `results/runs/pmmh/pmmh_samplesPMMH_iter*.npz` |
 
 For the smoke-test variants (`make smoke`, `make probit_smoke`) the output filenames have a different `RUN_TAG`; you'll need to update the hard-coded paths in the corresponding notebook cells if you want to plot smoke-test results. See [`REPRODUCIBILITY.md` §6](../../REPRODUCIBILITY.md) for the full env-var reference.
 
@@ -74,11 +74,7 @@ Display-only cells (the stack-plot, the corrected-vs-uncorrected line plots) cal
 The notebook supports two complementary ways to jump to a specific paper artifact:
 
 1. **Anchor links from the overview cell.** The figure map at the top contains clickable `[↗](#fig-7)` links that scroll directly to the markdown cell immediately above each producing code cell. Anchors are stable under cell insertion / reordering because they live inside cell *content*, not at a numeric position. They render in JupyterLab, classic Jupyter, [nbviewer](https://nbviewer.org), GitHub's notebook renderer, and VS Code.
-2. **Greppable producer markers.** Every figure-producing code cell starts with a header comment of the form `# === Producer: <Figure X> ===`. From a terminal:
-   ```bash
-   grep -n "Producer: Figure 7" plotting.ipynb
-   ```
-   gives you the line number inside the raw `.ipynb` JSON, which translates one-to-one to a cell.
+2. **In-client search for producer markers.** Every figure-producing code cell starts with a header comment of the form `# === Producer: <Figure X> ===`. Use the Find feature (Cmd-F / Ctrl-F) of whichever client you're in — JupyterLab, classic Jupyter, VS Code, nbviewer, or GitHub's rendered notebook view — and search for e.g. `Producer: Figure 7`; the search will land on the producing cell. Terminal `grep` on the raw `.ipynb` will *find* the marker but only return a JSON-line offset, not a cell index — use Find inside the client instead.
 
 Cell **indices** (e.g., "cell [17]") are *not* used as a stable reference because Jupyter doesn't display them in any consistent way and they shift on every cell insertion.
 
@@ -102,44 +98,6 @@ jupyter nbconvert --to notebook --execute --inplace python/plots/plotting.ipynb
 Most cells expect to be run **in order**, top to bottom, from a clean kernel. A handful of variable names (`sample_dir`, `image_dir`, `n, p, d, m`, `Analyzer`, `legend_order`, …) are reused across sections, so re-running cells out of order may silently produce wrong plots. If in doubt: *Kernel → Restart & Run All*.
 
 The most expensive section is §4's credible-band Monte-Carlo loop (≈ 24 h on a MacBook Pro for the documented settings). To shorten it, reduce `n_sim` or thin `a_subsamples` / `rho_subsamples` more aggressively; the loop also writes a checkpoint every 100 samples so you can resume from a `.pkl`.
-
----
-
-## Known issues
-
-### 1. Filename casing on Linux / case-sensitive filesystems
-
-The notebook is tracked in git as **`Plotting.ipynb`** (capital `P`) but the working-tree filename on the maintainer's macOS system is `plotting.ipynb` (lowercase). APFS / HFS+ on macOS is case-insensitive by default, so both names resolve to the same file there.
-
-On Linux or any case-sensitive filesystem, `git checkout` produces `Plotting.ipynb` and references to the lowercase `plotting.ipynb` (in this README and in `REPRODUCIBILITY.md`) will fail to resolve. Workaround until this is renamed in the repo:
-
-```bash
-# Linux / CI: pick one
-ln -s Plotting.ipynb plotting.ipynb
-# or, properly fix it on the branch:
-git mv Plotting.ipynb plotting.ipynb && git commit -m "fix: rename to lowercase"
-```
-
-The intended canonical name is **lowercase** `plotting.ipynb`.
-
-### 2. PMMH output path depends on a source-side fix
-
-The PMMH cell (§6) sets `sample_dir = "../../results/runs/pmmh/pmmh_samples"` and a clean `sample_files = ["PMMH_iter3000_..."]`. This assumes `python/pmmh/run_pmmh.py` writes its `.npz` to a `pmmh_samples/` subdirectory. As shipped, `run_pmmh.py` joins its `npz_dir` and `base_filename` with `+` (no path separator), so the file actually lands at `results/runs/pmmh/pmmh_samples<filename>` — `pmmh_samples` becomes part of the filename rather than a subdirectory.
-
-Until `run_pmmh.py` is patched to use `os.path.join(npz_dir, base_filename)`, change the §6 cell to:
-
-```python
-sample_dir = "../../results/runs/pmmh"
-sample_files = [
-    "pmmh_samplesPMMH_iter3000_n1000_p5_d2_m1_M1000_tau1_ps0p01_alpha0p5_adapt0_seed1234.npz"
-]
-```
-
-The notebook contains a markdown warning above the §6 cell with the same instructions.
-
-### 3. The notebook is shipped without cell outputs
-
-To keep diffs small, `plotting.ipynb` is committed without execution counts or rendered outputs. To preview a figure without re-running the whole pipeline, execute the relevant section's cells with `Run All Above` after running the corresponding sampler.
 
 ---
 
