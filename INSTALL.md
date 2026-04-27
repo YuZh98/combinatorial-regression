@@ -126,7 +126,6 @@ For NUTS-HMC, open `python/hmc/batch_run_nuts.ipynb` in Jupyter and run all cell
 | `ImportError: No module named jax` | Python deps not installed | See §2.2. |
 | `make smoke` writes to a different folder | Stale `JASA_*` env vars in your shell | `unset $(env | grep -o '^JASA_[A-Z_]*')` then re-run. |
 | Different RMSE numbers than the paper | RNG depends on `OMP_NUM_THREADS` (the C++ hit-and-run uses R's RNG inside an OpenMP region) | Set `OMP_NUM_THREADS=1` for byte-exact replication. |
-| Reviewer on Linux / case-sensitive FS can't find `plotting.ipynb` | Tracked filename is `Plotting.ipynb`; see [python/plots/README.md](python/plots/README.md) | Symlink or rename per that file's instructions. |
 
 ---
 
