@@ -1,0 +1,34 @@
+# Python dependencies for the combinatorial-regression reproducibility bundle.
+#
+# These are loose minimums covering the imports actually used by:
+#   - python/pmmh/*.py
+#   - python/hmc/nuts_ilp_model.py
+#   - python/hmc/batch_run_nuts.ipynb
+#   - python/plots/plotting.ipynb
+#
+# For an exact replication of the paper's results, also commit a frozen
+# lockfile alongside this one:
+#
+#     pip freeze > requirements-lock.txt
+#
+# and install from that. The floors below are conservative defaults,
+# not the exact versions used to produce the paper's tables.
+
+# --- Core scientific Python -------------------------------------------------
+numpy>=1.24
+scipy>=1.11
+pandas>=2.0
+matplotlib>=3.7
+
+# --- Bayesian / MCMC --------------------------------------------------------
+# JAX + NumPyro for NUTS-HMC (python/hmc/nuts_ilp_model.py)
+jax>=0.4.20
+jaxlib>=0.4.20
+numpyro>=0.13
+
+# ArviZ is used by python/pmmh/pmmh_diagnostics.py for ESS only.
+arviz>=0.16
+
+# --- Notebook execution ----------------------------------------------------
+# Required to run the .ipynb entry points (batch_run_nuts.ipynb, plotting.ipynb).
+jupyter>=1.0

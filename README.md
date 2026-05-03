@@ -10,6 +10,8 @@ Generated outputs are written to:
 results/
 ```
 
+> **First time?** Set up R and Python dependencies first — see [INSTALL.md](INSTALL.md).
+
 ---
 
 # Quick Start
@@ -31,10 +33,14 @@ Runs a lightweight simulation and data analysis to verify everything works.
 make full
 ```
 
-- The default setting does not run full grid of simulation settings in the paper to save time. To run the sampler in custom settings, change the corresponding enviroment variables first. See Section 6 in ```REPRODUCIBILITY.md``` for details. 
-    
+- The default setting does not run the full grid of simulation settings in the paper, to save time. To run the sampler with custom settings, change the corresponding environment variables first. See §6 in ```REPRODUCIBILITY.md``` for details.
 
-- Outputs saved under: (default is 1000)
+- **Note:** `scripts/run_full.sh` defaults to `JASA_METHODS="exponential halfgaussian"`, so `make full` produces results for **both** kernels in one pass. The main paper uses only the exponential kernel; the half-Gaussian results feed into Supplementary Table 3. To run only the main-paper kernel:
+  ```bash
+  JASA_METHODS=exponential make full
+  ```
+
+- Outputs saved under:
   ```
   results/runs/mh_within_gibbs/
   ```
@@ -82,7 +88,7 @@ make duck_reduced
 
 # ⚙️ Custom Settings
 
-All scripts support environment-variable overrides. For more details, see section 6 in ```REPRODUCILITY.md```.
+All scripts support environment-variable overrides. For more details, see §6 in ```REPRODUCIBILITY.md```.
 
 Example:
 
